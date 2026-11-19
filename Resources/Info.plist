@@ -7,13 +7,13 @@
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleDisplayName</key>
-    <string>Bitekey</string>
+    <string>SweetMX</string>
     <key>CFBundleExecutable</key>
-    <string>Bitekey</string>
+    <string>SweetMX</string>
     <key>CFBundleIdentifier</key>
-    <string>com.assagman.bitekey</string>
+    <string>com.sagmans.sweetmx</string>
     <key>CFBundleName</key>
-    <string>Bitekey</string>
+    <string>SweetMX</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -2,32 +2,32 @@
 import PackageDescription
 
 let package = Package(
-    name: "Bitekey",
+    name: "SweetMX",
     platforms: [
         .macOS(.v26)
     ],
     products: [
-        .executable(name: "Bitekey", targets: ["Bitekey"]),
+        .executable(name: "SweetMX", targets: ["SweetMX"]),
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.19.6"),
     ],
     targets: [
         .executableTarget(
-            name: "Bitekey",
-            path: "Sources/Bitekey",
+            name: "SweetMX",
+            path: "Sources/SweetMX",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .defaultIsolation(MainActor.self),
             ]
         ),
         .testTarget(
-            name: "BitekeyTests",
+            name: "SweetMXTests",
             dependencies: [
-                "Bitekey",
+                "SweetMX",
                 .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
             ],
-            path: "Tests/BitekeyTests",
+            path: "Tests/SweetMXTests",
             exclude: ["__Snapshots__"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),

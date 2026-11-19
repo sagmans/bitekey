@@ -21,9 +21,9 @@ body:
       required: true
 
   - type: input
-    id: bitekey-version
+    id: sweetmx-version
     attributes:
-      label: Bitekey version
+      label: SweetMX version
       description: Release version or git commit SHA
       placeholder: "vX.Y.Z or abc1234"
     validations:
@@ -33,7 +33,7 @@ body:
     id: install-method
     attributes:
       label: Install method
-      description: How did you install Bitekey?
+      description: How did you install SweetMX?
       options:
         - Release (zip/dmg)
         - Homebrew (cask)
@@ -63,7 +63,7 @@ body:
       label: Steps to reproduce
       description: Minimal steps to reproduce the issue
       placeholder: |
-        1. Launch Bitekey
+        1. Launch SweetMX
         2. Press Cmd+Space
         3. ...
     validations:
@@ -85,10 +85,11 @@ body:
     attributes:
       label: Logs / error messages
       description: |
-        Paste relevant logs. To capture Bitekey logs run:
-        `log stream --style syslog --predicate 'subsystem == "com.assagman.bitekey"' --info`
+        Paste relevant logs. To capture SweetMX logs run:
+        `log stream --style syslog --predicate 'subsystem == "com.sagmans.sweetmx"' --info`
 
-        Builds before the rename log under `com.assagman.applebox`.
+        Builds before the rename log under `com.assagman.bitekey` or
+        `com.assagman.applebox`.
         If built from source, include `swift run` output.
       render: text
     validations:

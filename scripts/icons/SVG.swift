@@ -118,7 +118,7 @@ struct IconLayerEntry: Encodable {
     }
 }
 
-/// Limits the document to macOS, the only platform Bitekey ships on.
+/// Limits the document to macOS, the only platform SweetMX ships on.
 struct IconPlatforms: Encodable {
     let squares: [String]
 }

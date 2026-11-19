@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Bitekey: a macOS launcher (app search and clipboard history) in Swift. See
+SweetMX: a macOS launcher (app search and clipboard history) in Swift. See
 `README.md` and `docs/TESTING.md`.
 
 ## Git hooks

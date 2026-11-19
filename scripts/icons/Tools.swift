@@ -75,7 +75,7 @@ enum ToolArguments {
 /// Scratch files live in one directory per run under the system temp folder,
 /// so a failed run leaves nothing in the repository and nothing shared.
 enum Scratch {
-    static let prefix = "bitekey-icons-"
+    static let prefix = "sweetmx-icons-"
     static let iconsetName = "AppIcon"
     static let referenceIconsetName = "reference"
     static let actoolDirectory = "actool"

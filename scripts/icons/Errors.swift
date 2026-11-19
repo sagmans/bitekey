@@ -37,7 +37,7 @@ enum RenderFailure: LocalizedError {
         case let .invalidOutput(path, reason):
             "Generated \(path) failed its self-check: \(reason)"
         case let .repositoryRootNotFound(checked):
-            "Refusing to write icons: could not confirm the repository root from \(checked). The generator must be compiled from the Bitekey repository's scripts/icons folder with absolute paths; run `make icons`."
+            "Refusing to write icons: could not confirm the repository root from \(checked). The generator must be compiled from the SweetMX repository's scripts/icons folder with absolute paths; run `make icons`."
         case let .unreadableInput(path, reason):
             "Could not read \(path): \(reason). Run `make icons`, which writes the sources first."
         case let .renderFailed(path, reason):

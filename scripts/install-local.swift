@@ -17,14 +17,14 @@ private enum LocalInstall {
             switch self {
             case .invalidArguments: "Expected install or uninstall, source bundle, destination bundle, bundle identifier, and one or more legacy bundle identifiers."
             case let .unexpectedBundle(url): "Refusing to replace or remove an unexpected item at \(url.path)."
-            case .running: "Quit Bitekey from its menu before installing, updating, or uninstalling."
-            case let .legacyRunning(name): "Quit \(name) and turn off its login item before you install Bitekey."
+            case .running: "Quit SweetMX from its menu before installing, updating, or uninstalling."
+            case let .legacyRunning(name): "Quit \(name) and turn off its login item before you install SweetMX."
             }
         }
     }
 
     private static let fileManager = FileManager.default
-    private static let stagingPrefix = ".bitekey-install-"
+    private static let stagingPrefix = ".sweetmx-install-"
     private static let privateDirectoryMode = 0o700
     /// Program, action, source, destination and identifier come first; legacy identifiers follow.
     private static let legacyIdentifiersStart = 5
@@ -51,7 +51,7 @@ private enum LocalInstall {
         switch action {
         case .install:
             // Only install is guarded: the old app would register the same global shortcuts,
-            // and it could write data after the first Bitekey launch copies it. Uninstall
+            // and it could write data after the first SweetMX launch copies it. Uninstall
             // touches neither, so it must work while the old app runs.
             // Every former name counts: any of them would clash in the same way.
             for legacyIdentifier in legacyIdentifiers {

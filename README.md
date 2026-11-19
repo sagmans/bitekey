@@ -1,12 +1,12 @@
-# Bitekey - Minimal macOS Launcher
+# SweetMX - Minimal macOS Launcher
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Bitekey is a minimal macOS launcher for app search and clipboard history.
+SweetMX is a minimal macOS launcher for app search and clipboard history.
 
 ## Building
 
-Bitekey requires macOS 26 or later and Swift 6.2 or later.
+SweetMX requires macOS 26 or later and Swift 6.2 or later.
 
 ```bash
 swift build
@@ -21,11 +21,11 @@ swift run
 ## Local Install
 
 `make install` puts a signed development copy at
-`~/Applications/Bitekey.app`. Open it from Finder or run
-`open ~/Applications/Bitekey.app`.
+`~/Applications/SweetMX.app`. Open it from Finder or run
+`open ~/Applications/SweetMX.app`.
 
 Run `make local-signing` once first. It creates a self-signed code-signing
-identity, "Bitekey Local Development", in your login keychain. Local builds
+identity, "SweetMX Local Development", in your login keychain. Local builds
 sign with it, so macOS keeps the paste permission across rebuilds; you grant
 it once. Without it, builds are ad-hoc signed and macOS forgets the permission
 after each build. The identity is for local builds only: releases are signed
@@ -33,8 +33,8 @@ with the Developer ID and notarized (`make ship`).
 
 If you granted the permission to an earlier build with a different signature,
 turning the switch off and on is not enough: macOS keeps the old signature. In
-System Settings → Privacy & Security, select Bitekey in the paste permission
-pane, remove it with **−**, then add `~/Applications/Bitekey.app` with **+**.
+System Settings → Privacy & Security, select SweetMX in the paste permission
+pane, remove it with **−**, then add `~/Applications/SweetMX.app` with **+**.
 
 Dev and release builds share the bundle ID, saved data, and hotkeys, so run
 one at a time. Because their signatures differ, macOS asks for the paste
@@ -50,31 +50,35 @@ the logo, edit the constants in `scripts/icons/` and run `make icons`. It
 regenerates the icon sources, the menu-bar images, `Resources/Logo.png` and
 `Resources/AppIcon.icns`. Commit those files with the change.
 
-To opt in to startup, select **Launch at Login → Start Bitekey Automatically**
+To opt in to startup, select **Launch at Login → Start SweetMX Automatically**
 in the menu bar. Select it again to disable it. If macOS asks for approval,
 choose **Open Login Items Settings** from the same submenu. You can also add or
 remove the installed app under **System Settings → General → Login Items &
 Extensions → Open at Login**. Disable automatic startup before uninstalling.
 
-## Moving from AppleBox
+## Moving from Bitekey or AppleBox
 
-Bitekey was named AppleBox before. Follow these steps to move.
+SweetMX was named Bitekey before, and AppleBox before that. Follow these steps
+to move. "The old app" is the one you have installed.
 
-1. Quit AppleBox. Turn off its login item.
+1. Quit the old app. Turn off its login item.
 2. Run `make local-signing`. It makes the new identity,
-   "Bitekey Local Development".
-3. Run `make install`. It refuses to run while AppleBox runs.
-4. Open Bitekey. The first launch copies clip history, recent apps, and
-   shortcut choices. AppleBox data stays unchanged.
-5. Grant the paste permission to Bitekey once.
-6. Check that your old clips show in the Bitekey clipboard history. Then move
-   `~/Library/Application Support/AppleBox` and `~/Applications/AppleBox.app`
-   to the Trash.
+   "SweetMX Local Development".
+3. Run `make install`. It refuses to run while Bitekey or AppleBox runs.
+4. Open SweetMX. The first launch copies clip history, recent apps, and
+   shortcut choices. Each kind of data comes from the newest old app that left
+   it. Old app data stays unchanged.
+5. Grant the paste permission to SweetMX once.
+6. Check that your old clips show in the SweetMX clipboard history. Then move
+   the old data folder (`~/Library/Application Support/Bitekey` or
+   `~/Library/Application Support/AppleBox`) and the old app
+   (`~/Applications/Bitekey.app` or `~/Applications/AppleBox.app`) to the
+   Trash.
 
-If your old clips do not show in step 6, the copy failed. Keep the AppleBox
-data. Quit Bitekey, move `~/Library/Application Support/Bitekey` to the Trash,
-and open Bitekey again. The next launch tries the copy again. Clips that
-Bitekey saved before this step are lost.
+If your old clips do not show in step 6, the copy failed. Keep the old app
+data. Quit SweetMX, move `~/Library/Application Support/SweetMX` to the Trash,
+and open SweetMX again. The next launch tries the copy again. Clips that
+SweetMX saved before this step are lost.
 
 ## Testing
 
@@ -118,7 +122,7 @@ swift test --show-codecov-path
 # Generate a text report using llvm-cov
 BIN_PATH=$(swift build --show-bin-path)
 xcrun llvm-cov report \
-  "${BIN_PATH}/BitekeyPackageTests.xctest/Contents/MacOS/BitekeyPackageTests" \
+  "${BIN_PATH}/SweetMXPackageTests.xctest/Contents/MacOS/SweetMXPackageTests" \
   -instr-profile="${BIN_PATH}/codecov/default.profdata" \
   -ignore-filename-regex='.build|Tests'
 ```
@@ -140,10 +144,10 @@ and SwiftLint versions.
 
 - **Global shortcuts** open app search with `Cmd+Space` and clipboard history
   with `Opt+Space` by default. Choose a preset for each mode under
-  **Global Shortcuts** in the Bitekey menu. The check mark shows the active
-  shortcut. If macOS rejects a choice, Bitekey keeps the current shortcut.
-- **Menu bar**: Open either mode, retry global shortcuts, or quit Bitekey
-- **Clipboard history** keeps plain text and PNG or TIFF images. Bitekey
+  **Global Shortcuts** in the SweetMX menu. The check mark shows the active
+  shortcut. If macOS rejects a choice, SweetMX keeps the current shortcut.
+- **Menu bar**: Open either mode, retry global shortcuts, or quit SweetMX
+- **Clipboard history** keeps plain text and PNG or TIFF images. SweetMX
   checks for copies about every 200 ms while capture is enabled. If several
   copies replace each other before a check, only the latest can be captured.
 - **Liquid Glass panel**: The launcher is a glass panel that opens on the screen
@@ -179,4 +183,4 @@ Do not report security problems in public issues. See
 
 ## License
 
-Bitekey is released under the [MIT License](LICENSE).
+SweetMX is released under the [MIT License](LICENSE).

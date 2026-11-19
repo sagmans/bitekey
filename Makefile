@@ -8,13 +8,13 @@
 # Configuration
 # ==============================================================================
 
-APP_NAME := Bitekey
-BUNDLE_ID := com.assagman.bitekey
+APP_NAME := SweetMX
+BUNDLE_ID := com.sagmans.sweetmx
 # Former bundle IDs, newest first, the sources of the one-time data migration.
 # `make install` refuses while any of them runs: both apps would register the same
 # global shortcuts, and the old app could write data after the migration copied it.
 # Keep in step with `legacySources` in LegacyDataMigration.swift, in the same order.
-LEGACY_BUNDLE_IDS := com.assagman.applebox
+LEGACY_BUNDLE_IDS := com.assagman.bitekey com.assagman.applebox
 BUILD_DIR := .build/release
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR := $(HOME)/Applications
@@ -33,7 +33,7 @@ ICON_BINARY := $(ICON_BUILD_DIR)/render-icons
 # privacy grants, such as the paste permission. Without that identity, builds fall back to
 # ad-hoc and warn. Set LOCAL_SIGNING_IDENTITY to override, e.g. `-` to force ad-hoc.
 # The keychain is read only inside `bundle`, so lint, format and test never touch it.
-LOCAL_SIGNING_NAME := Bitekey Local Development
+LOCAL_SIGNING_NAME := SweetMX Local Development
 LOCAL_SIGNING_SETUP := scripts/setup-local-signing
 LOCAL_SIGNING_IDENTITY ?=
 ADHOC_SIGNING_IDENTITY := -
@@ -49,13 +49,13 @@ ZIP_NAME := $(APP_NAME)-v$(VERSION)-macOS.zip
 DMG_NAME := $(APP_NAME)-v$(VERSION)-macOS.dmg
 # Public home of the project; release messages link here so a maintainer can
 # open the new release in one click. Change it if the repository moves.
-REPO_URL := https://github.com/sagmans/bitekey
+REPO_URL := https://github.com/sagmans/sweetmx
 
 # Code signing configuration
 DEVELOPER_ID := Developer ID Application: Ahmet Sercan Sagman (6C96BU4M82)
 TEAM_ID := 6C96BU4M82
-NOTARIZE_PROFILE := Bitekey-Notarize
-ENTITLEMENTS := Resources/Bitekey.entitlements
+NOTARIZE_PROFILE := SweetMX-Notarize
+ENTITLEMENTS := Resources/SweetMX.entitlements
 # Menu bar status item artwork. Both files ship so AppKit can pick the @2x one
 # on Retina screens instead of upscaling the 18 px file.
 MENU_BAR_ICONS := Resources/MenuBarIconTemplate.png Resources/MenuBarIconTemplate@2x.png
@@ -74,12 +74,12 @@ SWIFTFORMAT_RELEASE_URL := https://github.com/nicklockwood/SwiftFormat/releases/
 SWIFTLINT_VERSION := 0.65.1
 SWIFTLINT_RELEASE_URL := https://github.com/realm/SwiftLint/releases/tag/$(SWIFTLINT_VERSION)
 SWIFT_STYLE_PATHS := Sources Tests scripts/benchmark-search.swift $(LOCAL_INSTALLER) $(ICON_GENERATOR)
-SEARCH_BENCHMARK := .build/bitekey-search-benchmark
+SEARCH_BENCHMARK := .build/sweetmx-search-benchmark
 SEARCH_BENCHMARK_SOURCES := scripts/benchmark-search.swift \
-	Sources/Bitekey/SearchService.swift Sources/Bitekey/ApplicationIndexer.swift \
-	Sources/Bitekey/ApplicationFolderMonitor.swift Sources/Bitekey/ApplicationScanRoots.swift \
-	Sources/Bitekey/LogSubsystem.swift Sources/Bitekey/AppDataLocation.swift \
-	Sources/Bitekey/Protocols/FileSystemProtocol.swift Sources/Bitekey/System/SystemFileManager.swift
+	Sources/SweetMX/SearchService.swift Sources/SweetMX/ApplicationIndexer.swift \
+	Sources/SweetMX/ApplicationFolderMonitor.swift Sources/SweetMX/ApplicationScanRoots.swift \
+	Sources/SweetMX/LogSubsystem.swift Sources/SweetMX/AppDataLocation.swift \
+	Sources/SweetMX/Protocols/FileSystemProtocol.swift Sources/SweetMX/System/SystemFileManager.swift
 SWIFT_SCAN_TIMEOUT := 120
 # Resources is scanned for entitlements and Info.plist keys that weaken the
 # hardened runtime or App Transport Security; the Swift rules skip it.
@@ -126,7 +126,7 @@ NC := \033[0m  # No Color
 
 help:
 	@echo ""
-	@echo "$(BLUE)Bitekey Makefile$(NC)"
+	@echo "$(BLUE)SweetMX Makefile$(NC)"
 	@echo "=================="
 	@echo ""
 	@echo "$(GREEN)Development:$(NC)"

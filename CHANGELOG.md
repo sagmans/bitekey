@@ -16,8 +16,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Renamed AppleBox to Bitekey. The first launch copies clip history, recent
-  apps, and shortcut choices from AppleBox. AppleBox data is not changed.
+- Renamed AppleBox to SweetMX, with the new bundle ID `com.sagmans.sweetmx`.
+  The first launch copies clip history, recent apps, and shortcut choices
+  from AppleBox, or from Bitekey, the name of unreleased builds in between.
+  Each kind of data comes from the newest old app that left it. Old data is
+  not changed. macOS asks again for the paste permission.
 - Replaced the apple-shaped logo with a grayscale keycap icon. The app ships
   a native glass icon, so `make bundle` and `make install` need full Xcode,
   not only the Command Line Tools

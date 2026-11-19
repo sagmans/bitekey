@@ -1,4 +1,4 @@
-// Entry point of the icon generator. It generates every Bitekey icon file from
+// Entry point of the icon generator. It generates every SweetMX icon file from
 // the constants in this folder, so the committed vector sources and bitmaps
 // trace back to one reviewed place instead of hand edits in a design tool. It
 // uses only system frameworks, because third-party renderers carry

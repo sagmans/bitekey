@@ -3,10 +3,10 @@
 ## Distribution
 
 - [ ] **Homebrew Distribution**
-  - [ ] Create Homebrew tap repository (`homebrew-bitekey`)
+  - [ ] Create Homebrew tap repository (`homebrew-sweetmx`)
   - [ ] Write Formula with cask for GUI app
   - [ ] Submit to homebrew-cask for wider distribution
-  - [ ] Add `brew install --cask bitekey` to README
+  - [ ] Add `brew install --cask sweetmx` to README
 
 ## Features
 

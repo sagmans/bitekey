@@ -12,27 +12,56 @@ private nonisolated enum ClipPreview {
     /// still fills a line for typical clips while keeping the bound small.
     static let collapseHeadroomFactor = 4
     static let ellipsis = "..."
-    static let space = " "
-    /// Whitespace that would break a one-line preview, longest first so CRLF counts once.
-    static let lineBreaks = ["\r\n", "\n", "\r", "\t"]
+    static let space: Character = " "
+    /// Characters that end a word in the preview: runs of them collapse to one space. CRLF is a single
+    /// Swift Character, so it is listed itself and counts once.
+    static let separators: Set<Character> = [" ", "\r\n", "\n", "\r", "\t"]
 }
 
 /// Builds clipboard rows away from the main actor, so classifying and highlighting dozens of clips
 /// never delays a keystroke.
 nonisolated enum ClipRowBuilder {
     /// Collapses whitespace and truncates, because a row shows one line and the preview pane shows the rest.
+    ///
+    /// One pass that stops at the first character past the limit: every row is rebuilt on every
+    /// keystroke, and the earlier form (four Foundation replacements, then a split and a join over the
+    /// scanned text) made previews most of the clipboard search cost.
     static func preview(of content: String) -> String {
-        let isCut = !content.dropFirst(ClipPreview.scanLimit).isEmpty
-        let scanned = String(content.prefix(ClipPreview.scanLimit))
-        let singleLine = ClipPreview.lineBreaks
-            .reduce(scanned) { $0.replacingOccurrences(of: $1, with: ClipPreview.space) }
-            .split(separator: Character(ClipPreview.space), omittingEmptySubsequences: true)
-            .joined(separator: ClipPreview.space)
-
-        // Text dropped before collapsing must still be signalled, or a long clip would look complete.
-        return singleLine.count > ClipPreview.characterLimit || isCut
-            ? String(singleLine.prefix(ClipPreview.characterLimit)) + ClipPreview.ellipsis
-            : singleLine
+        var line = ""
+        line.reserveCapacity(ClipPreview.characterLimit + ClipPreview.ellipsis.count)
+        var kept = 0
+        var pendingSpace = false
+        var scanned = 0
+        var isCut = false
+        for character in content {
+            guard scanned < ClipPreview.scanLimit else {
+                // Text dropped before collapsing must still be signalled, or a long clip would look complete.
+                isCut = true
+                break
+            }
+            scanned += 1
+            if ClipPreview.separators.contains(character) {
+                pendingSpace = kept > 0
+                continue
+            }
+            // A separator before the first kept character is dropped, and one before a character past
+            // the limit is never shown, so it only counts once something follows it.
+            let needed = pendingSpace ? 2 : 1
+            guard kept + needed <= ClipPreview.characterLimit else {
+                if pendingSpace, kept < ClipPreview.characterLimit {
+                    line.append(ClipPreview.space)
+                }
+                isCut = true
+                break
+            }
+            if pendingSpace {
+                line.append(ClipPreview.space)
+                pendingSpace = false
+            }
+            line.append(character)
+            kept += needed
+        }
+        return isCut ? line + ClipPreview.ellipsis : line
     }
 
     /// Match offsets refer to the full clip, so highlights are recomputed against the shortened preview

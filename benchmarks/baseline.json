@@ -51,9 +51,9 @@
       "unit" : "KiB"
     },
     "clip_search_typing_ms" : {
-      "baseline" : 29.499,
+      "baseline" : 14.329,
       "kind" : "time",
-      "limit" : 44.248,
+      "limit" : 21.494,
       "summary" : "30 keystrokes over 50 clips, search and rows",
       "unit" : "ms"
     },
@@ -100,5 +100,5 @@
       "unit" : "ms"
     }
   },
-  "recordedAt" : "2026-11-19T16:28:04Z"
+  "recordedAt" : "2026-11-19T16:31:28Z"
 }

@@ -79,6 +79,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startServices() {
+        // Covers setup on the main actor only; the scan and history load that it starts have their own intervals.
+        let signpost = PerformanceSignposts.begin(PerformanceSignposts.Name.startup)
+        defer { signpost.end() }
         // Before any store loads, so none reads the new, still empty location first.
         logMigration(LegacyDataMigration().run())
 

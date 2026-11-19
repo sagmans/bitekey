@@ -486,15 +486,16 @@ nothing outside this repo. Each hook runs the generic checks first (sign-off,
 message structure, gitleaks secret scan, signed commits on push), then every
 script in `.githooks/<hook>.d/`. `pre-push` checks signature, sign-off,
 message and secrets on each pushed commit, and runs the scanners, build,
-tests and benchmark once on each pushed tip.
+tests and performance gate once on each pushed tip. The gate is described in
+[PERFORMANCE.md](PERFORMANCE.md).
 
 ### What the Hooks Run
 
-| Hook                   | Checks                                                                                                                |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `pre-commit`           | gitleaks (staged), `make format-check`, `make lint`                                                                   |
-| `pre-push`, per commit | sign-off, signature, message, gitleaks                                                                                |
-| `pre-push`, per tip    | `make format-check lint audit-swift-dependencies swift-sast duplication`, `swift build`, `make test benchmark-search` |
+| Hook                   | Checks                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `pre-commit`           | gitleaks (staged), `make format-check`, `make lint`                                                            |
+| `pre-push`, per commit | sign-off, signature, message, gitleaks                                                                         |
+| `pre-push`, per tip    | `make format-check lint audit-swift-dependencies swift-sast duplication`, `swift build`, `make test benchmark` |
 
 `make swift-sast` runs the rules in `.semgrep-swift.yml` on `Sources`,
 `Resources` and the Swift scripts. Inline `nosemgrep` comments are ignored;

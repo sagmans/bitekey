@@ -343,7 +343,9 @@ final nonisolated class SearchService: @unchecked Sendable {
     }
 
     func search(_ query: String, isCancelled: () -> Bool) -> [SearchResult] {
-        lock.withLock { searchLocked(query, isCancelled: isCancelled) }
+        let signpost = PerformanceSignposts.begin(PerformanceSignposts.Name.appSearch)
+        defer { signpost.end() }
+        return lock.withLock { searchLocked(query, isCancelled: isCancelled) }
     }
 
     private func searchLocked(_ query: String, isCancelled: () -> Bool) -> [SearchResult] {

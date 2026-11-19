@@ -19,11 +19,15 @@ template (`templates/githooks/`); change them there, not here.
 - `pre-push` runs format and lint, audits the Swift dependency revisions, scans
   Swift code and bundle config with the rules in `.semgrep-swift.yml`
   (`make swift-sast`), blocks duplicated production Swift
-  (`make duplication`), builds, and runs the test suite and search benchmark
-  once on each pushed tip. A push is one commit or a group of commits with
-  one goal; the generic signature, sign-off, message and secret checks still
-  run on every pushed commit. The suite includes the app search and clipboard
-  smoke flows.
+  (`make duplication`), builds, and runs the test suite and the performance
+  gate (`make benchmark`) once on each pushed tip. A push is one commit or a
+  group of commits with one goal; the generic signature, sign-off, message and
+  secret checks still run on every pushed commit. The suite includes the app
+  search and clipboard smoke flows.
+- `make benchmark` fails when a metric passes its limit in
+  `benchmarks/baseline.json`. Fix the regression; never raise a limit to pass.
+  Re-record with `make benchmark-baseline` only for an intended change, and
+  commit the new baseline with that change. See `docs/PERFORMANCE.md`.
 - Both repo checks need macOS. On another host they fail with a clear reason;
   they do not skip.
 - `make format` and `make format-check` need the exact SwiftFormat release in

@@ -44,7 +44,9 @@ final nonisolated class ClipSearchIndex: @unchecked Sendable {
     /// next keystroke does not pay for them again. Cancellation is checked between clips, so a caller
     /// on the main actor waits at most for one clip's fold of a superseded search.
     func search(_ trimmedQuery: String, in history: [ClipboardItem], isCancelled: () -> Bool) -> [Match] {
-        lock.withLock { searchLocked(trimmedQuery, in: history, isCancelled: isCancelled) }
+        let signpost = PerformanceSignposts.begin(PerformanceSignposts.Name.clipSearch)
+        defer { signpost.end() }
+        return lock.withLock { searchLocked(trimmedQuery, in: history, isCancelled: isCancelled) }
     }
 
     /// Frees the folds of clips that left history as soon as history changes, so a removed clip's text

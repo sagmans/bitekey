@@ -39,6 +39,6 @@ for sha in $tips; do
 	echo "pre-push: Swift checks at pushed tip $(git rev-parse --short "$sha")"
 	at_sha "$sha" sh -c '
 		make format-check lint audit-swift-dependencies swift-sast duplication &&
-		swift build && make test benchmark-search
+		swift build && make test benchmark
 	' || exit 1
 done

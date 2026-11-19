@@ -40,8 +40,8 @@ with `--no-verify`.
 
 The hooks check secrets, format, lint, commit messages, sign-off, and
 signatures. Before a push, they also run the dependency audit, static
-analysis, duplication and complexity checks, build, tests, and search
-benchmark. A missing tool stops the hook.
+analysis, duplication and complexity checks, build, tests, and performance
+gate ([docs/PERFORMANCE.md](docs/PERFORMANCE.md)). A missing tool stops the hook.
 [AGENTS.md](AGENTS.md) lists each check and the tools that it needs.
 
 ### Commits

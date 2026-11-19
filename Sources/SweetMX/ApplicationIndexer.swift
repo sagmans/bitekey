@@ -241,6 +241,8 @@ final nonisolated class ApplicationIndexer: @unchecked Sendable {
 
     /// Rescan the roots in scope and rebuild the full list in root order from cached results.
     private func scanForApplicationsInternal(scope: ApplicationRefreshScope = .all) -> [ApplicationInfo] {
+        let signpost = PerformanceSignposts.begin(PerformanceSignposts.Name.appScan)
+        defer { signpost.end() }
         var found: [ApplicationInfo] = []
         found.reserveCapacity(1024)
         var rescanned = 0

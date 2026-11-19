@@ -1,0 +1,104 @@
+{
+  "host" : "Mac14,6, 12 cores",
+  "metrics" : {
+    "app_binary_kib" : {
+      "baseline" : 2406.32,
+      "kind" : "size",
+      "limit" : 2646.953,
+      "summary" : "Release executable size",
+      "unit" : "KiB"
+    },
+    "app_empty_query_rows_ms" : {
+      "baseline" : 0.58,
+      "kind" : "time",
+      "limit" : 0.87,
+      "summary" : "Alphabetical rows with recents first, on first panel show",
+      "unit" : "ms"
+    },
+    "app_index_retained_kib" : {
+      "baseline" : 177.531,
+      "kind" : "memory",
+      "limit" : 305.532,
+      "summary" : "Heap held by the index loaded from its cache",
+      "unit" : "KiB"
+    },
+    "app_index_scan_ms" : {
+      "baseline" : 94.28,
+      "kind" : "time",
+      "limit" : 141.421,
+      "summary" : "Full rescan of 600 app bundles on disk",
+      "unit" : "ms"
+    },
+    "app_search_typing_ms" : {
+      "baseline" : 1.661,
+      "kind" : "time",
+      "limit" : 2.492,
+      "summary" : "39 keystrokes over 600 apps, search and rows",
+      "unit" : "ms"
+    },
+    "clip_search_cold_ms" : {
+      "baseline" : 0.672,
+      "kind" : "time",
+      "limit" : 1.009,
+      "summary" : "First search: folds every clip, including large ones",
+      "unit" : "ms"
+    },
+    "clip_search_retained_kib" : {
+      "baseline" : 396.5,
+      "kind" : "memory",
+      "limit" : 524.5,
+      "summary" : "Fold cache held after one search of a full history",
+      "unit" : "KiB"
+    },
+    "clip_search_typing_ms" : {
+      "baseline" : 29.499,
+      "kind" : "time",
+      "limit" : 44.248,
+      "summary" : "30 keystrokes over 50 clips, search and rows",
+      "unit" : "ms"
+    },
+    "history_archive_kib" : {
+      "baseline" : 346.878,
+      "kind" : "size",
+      "limit" : 381.566,
+      "summary" : "On-disk archive for a full history",
+      "unit" : "KiB"
+    },
+    "history_load_ms" : {
+      "baseline" : 0.956,
+      "kind" : "time",
+      "limit" : 1.434,
+      "summary" : "Read, decode and restore 50 clips",
+      "unit" : "ms"
+    },
+    "history_save_ms" : {
+      "baseline" : 0.672,
+      "kind" : "time",
+      "limit" : 1.009,
+      "summary" : "Encode and write 50 clips",
+      "unit" : "ms"
+    },
+    "idle_clipboard_polls_per_s" : {
+      "baseline" : 2,
+      "kind" : "rate",
+      "limit" : 2.2,
+      "summary" : "Clipboard checks per second with the panel hidden",
+      "unit" : "1\/s"
+    },
+    "idle_cpu_ms_per_s" : {
+      "baseline" : 0.295,
+      "kind" : "rate",
+      "limit" : 1,
+      "summary" : "Process CPU per second of idle, with monitoring on",
+      "unit" : "ms\/s"
+    },
+    "startup_services_ms" : {
+      "baseline" : 5.125,
+      "kind" : "time",
+      "limit" : 7.688,
+      "summary" : "Index cache, history load and first app rows, as at launch",
+      "unit" : "ms"
+    }
+  },
+  "recordedAt" : "2026-11-19T16:28:04Z"
+}

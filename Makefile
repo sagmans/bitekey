@@ -1,5 +1,5 @@
 .PHONY: build test python-policy format format-check swiftformat-version swiftlint-version lint hooks bundle run stop status install uninstall clean icons \
-        audit-swift-dependencies swift-sast duplication benchmark-search \
+        audit-swift-dependencies swift-sast duplication benchmark benchmark-baseline profile-app profile-trace \
         local-signing sign verify-sign check-adhoc notarize check-notarize staple \
         notary-check zip dmg dist tag tag-push release ship \
         preflight version-bump help
@@ -77,19 +77,40 @@ SWIFTFORMAT_RELEASE_URL := https://github.com/nicklockwood/SwiftFormat/releases/
 # fixes in one commit.
 SWIFTLINT_VERSION := 0.65.1
 SWIFTLINT_RELEASE_URL := https://github.com/realm/SwiftLint/releases/tag/$(SWIFTLINT_VERSION)
-SWIFT_STYLE_PATHS := Sources Tests scripts/benchmark-search.swift $(LOCAL_INSTALLER) $(ICON_GENERATOR)
-SEARCH_BENCHMARK := .build/sweetmx-search-benchmark
-SEARCH_BENCHMARK_SOURCES := scripts/benchmark-search.swift \
-	Sources/SweetMX/SearchService.swift Sources/SweetMX/ApplicationIndexer.swift \
-	Sources/SweetMX/ApplicationFolderMonitor.swift Sources/SweetMX/ApplicationScanRoots.swift \
-	Sources/SweetMX/LogSubsystem.swift Sources/SweetMX/AppDataLocation.swift \
-	Sources/SweetMX/Protocols/FileSystemProtocol.swift Sources/SweetMX/System/SystemFileManager.swift
+# Defined before the path lists below, which expand it at once (:=).
+PROFILE_SCRIPT := scripts/profile-app.swift
+SWIFT_STYLE_PATHS := Sources Tests $(PROFILE_SCRIPT) $(LOCAL_INSTALLER) $(ICON_GENERATOR)
+# The performance gate builds with optimizations, as the shipped app is, plus -enable-testing so
+# the benchmarks can reach internal types. Its own scratch path keeps those flags from forcing a
+# full rebuild of the plain release build (.build/release) that `make bundle` uses, and back.
+BENCHMARK_SCRATCH := .build/benchmark
+BENCHMARK_FLAGS := -c release -Xswiftc -enable-testing --scratch-path $(BENCHMARK_SCRATCH)
+BENCHMARK_FILTER := SweetMXBenchmarks
+BENCHMARK_RESULTS := $(BENCHMARK_SCRATCH)/results.json
+# The binary size metric reads the shipped build, not the -enable-testing one.
+RELEASE_BINARY := $(BUILD_DIR)/$(APP_NAME)
+# Bounds a whole gate run (release build plus about 30 s of measurement), so a hung benchmark
+# fails the push instead of blocking it.
+BENCHMARK_TIMEOUT := 900
+# One command for the gate and for recording, so both always measure the same way.
+BENCHMARK_RUN = SWEETMX_BENCHMARK=1 SWEETMX_BENCHMARK_BINARY="$(CURDIR)/$(RELEASE_BINARY)" \
+	SWEETMX_BENCHMARK_RESULTS="$(CURDIR)/$(BENCHMARK_RESULTS)" \
+	timeout $(BENCHMARK_TIMEOUT) swift test $(BENCHMARK_FLAGS) --filter $(BENCHMARK_FILTER)
+# The app's Application Support folder; must match AppDataLocation.folderName in the app.
+DATA_FOLDER_NAME := $(APP_NAME)
+# Sampling window of `make profile-app`; long enough to span many clipboard polls.
+PROFILE_SECONDS := 10
+# Length and output of `make profile-trace`. Traces hold symbol names and timings, not clip text, but
+# stay in the ignored build folder like every other local artifact.
+TRACE_SECONDS := 30
+TRACE_DIR := .build/profiles
+TRACE_TEMPLATE := Time Profiler
 SWIFT_SCAN_TIMEOUT := 120
 # Resources is scanned for entitlements and Info.plist keys that weaken the
 # hardened runtime or App Transport Security; the Swift rules skip it.
-SWIFT_SAST_PATHS := Sources Resources scripts/benchmark-search.swift $(LOCAL_INSTALLER) $(ICON_GENERATOR)
+SWIFT_SAST_PATHS := Sources Resources $(PROFILE_SCRIPT) $(LOCAL_INSTALLER) $(ICON_GENERATOR)
 # Production Swift only: tests repeat setup on purpose so each reads alone.
-DUPLICATION_PATHS := Sources scripts/benchmark-search.swift $(LOCAL_INSTALLER) $(ICON_GENERATOR)
+DUPLICATION_PATHS := Sources $(PROFILE_SCRIPT) $(LOCAL_INSTALLER) $(ICON_GENERATOR)
 DUPLICATION_TIMEOUT := 120
 # Bounds each `make icons` step (compile, sources, bitmaps) and the `make
 # bundle` catalog step (about 3 s: one xcode-select, one actool compile), so a
@@ -136,6 +157,10 @@ help:
 	@echo "$(GREEN)Development:$(NC)"
 	@echo "  make build        - Build release binary"
 	@echo "  make test         - Run test suite"
+	@echo "  make benchmark    - Performance gate against benchmarks/baseline.json"
+	@echo "  make benchmark-baseline - Record new limits (METRICS=a,b for some only)"
+	@echo "  make profile-app  - CPU, wakeups, memory and disk of the running app"
+	@echo "  make profile-trace - Time Profiler trace of the running app (needs Xcode)"
 	@echo "  make format       - Auto-format Sources/ and Tests/ (SwiftFormat)"
 	@echo "  make format-check - Fail if formatting is needed (SwiftFormat --lint)"
 	@echo "  make lint         - Run SwiftLint"
@@ -209,10 +234,41 @@ swift-sast:
 duplication:
 	@DUPLICATION_TIMEOUT=$(DUPLICATION_TIMEOUT) bash scripts/check-duplication.sh $(DUPLICATION_PATHS)
 
-benchmark-search:
-	@mkdir -p "$(dir $(SEARCH_BENCHMARK))"
-	@swiftc -O $(SEARCH_BENCHMARK_SOURCES) -o "$(SEARCH_BENCHMARK)"
-	@"$(SEARCH_BENCHMARK)"
+# Performance gate: measures hot paths, memory, idle cost and binary size, and fails when a metric
+# passes its limit in benchmarks/baseline.json. See docs/PERFORMANCE.md.
+benchmark:
+	@echo "$(BLUE)Running the performance gate (release build)...$(NC)"
+	@swift build -c release
+	@rm -f "$(BENCHMARK_RESULTS)"
+	@$(BENCHMARK_RUN)
+	@# Fails closed: a skipped or filtered-out test exits 0 without measuring anything.
+	@test -s "$(BENCHMARK_RESULTS)" || { echo "$(RED)The performance gate measured nothing; is the test skipped?$(NC)" >&2; exit 1; }
+	@echo "$(GREEN)Performance within baseline$(NC)"
+
+# Rewrites the committed limits from this machine. Run only after an intended change, review the
+# diff of benchmarks/baseline.json, and commit it with the change that moved the numbers.
+# METRICS=name,name rewrites only those entries, so a new metric leaves the other limits alone.
+benchmark-baseline:
+	@swift build -c release
+	@SWEETMX_BENCHMARK_RECORD="$(or $(METRICS),1)" $(BENCHMARK_RUN)
+
+# Read-only resource reading of the running app: CPU, wakeups, memory, disk I/O and disk space.
+profile-app:
+	@swift "$(PROFILE_SCRIPT)" "$(BUNDLE_ID)" "$(PROFILE_SECONDS)" "$(DATA_FOLDER_NAME)"
+
+# Time Profiler trace of the running app, with the PerformanceSignposts intervals on the Points of
+# Interest track. Needs Xcode; open the result with `open <trace>`. xctrace can exit non-zero for
+# a side stream (os_log) while the samples are fine, so only a missing trace fails the target.
+profile-trace:
+	@pid="$$(pgrep -x "$(APP_NAME)" | head -n 1)"; \
+	if [ -z "$$pid" ]; then echo "$(RED)$(APP_NAME) is not running; start it with 'make run'$(NC)" >&2; exit 1; fi; \
+	mkdir -p "$(TRACE_DIR)"; \
+	out="$(TRACE_DIR)/$(APP_NAME)-$$(date +%Y%m%d-%H%M%S).trace"; \
+	status=0; xcrun xctrace record --template "$(TRACE_TEMPLATE)" --attach "$$pid" --time-limit "$(TRACE_SECONDS)s" \
+		--output "$$out" --no-prompt || status=$$?; \
+	if [ ! -d "$$out" ]; then echo "$(RED)No trace recorded (xctrace exit $$status)$(NC)" >&2; exit 1; fi; \
+	if [ "$$status" -ne 0 ]; then echo "$(YELLOW)xctrace reported run issues (exit $$status); the trace is still readable$(NC)"; fi; \
+	echo "$(GREEN)Trace saved: $$out$(NC)"
 
 # ==============================================================================
 # Code Style

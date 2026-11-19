@@ -7,8 +7,8 @@ swiftlint_version: 0.65.1
 included:
   - Sources
   - Tests
-  - scripts/benchmark-search.swift
   - scripts/install-local.swift
+  - scripts/profile-app.swift
   - scripts/icons
 
 excluded:

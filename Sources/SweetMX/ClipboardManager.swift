@@ -600,6 +600,8 @@ final nonisolated class ClipboardManager: @unchecked Sendable {
     /// Writes new image files first and the archive second, and deletes stale image files last. A crash
     /// at any point leaves an archive whose images all exist; extra files are swept on the next load.
     private func persistHistory(_ snapshot: [ClipboardItem], replaceUnreadableArchive: Bool = false) throws {
+        let signpost = PerformanceSignposts.begin(PerformanceSignposts.Name.historySave)
+        defer { signpost.end() }
         // Only an explicitly confirmed clear can replace an unreadable archive.
         guard storageWritesAllowed || replaceUnreadableArchive, let storageURL, let imageStore else { throw ClipboardStorageError.unavailable }
         let data = try ClipboardHistoryArchive.encode(snapshot)
@@ -697,6 +699,8 @@ final nonisolated class ClipboardManager: @unchecked Sendable {
     /// `pruned` asks for a save: clips were dropped, or the archive was written by an earlier version and
     /// its inline images must move to their own files.
     private func loadHistoryFromDisk() -> (items: [ClipboardItem], pruned: Bool) {
+        let signpost = PerformanceSignposts.begin(PerformanceSignposts.Name.historyLoad)
+        defer { signpost.end() }
         guard storageWritesAllowed, let storageURL, let imageStore else { return ([], false) }
 
         do {

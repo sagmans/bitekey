@@ -139,8 +139,15 @@ make hooks   # same as ./scripts/setup-hooks
 
 The hooks check commit messages, signatures, sign-off, and secrets. On macOS,
 they also run the Swift format and lint checks, dependency audit, static scan,
-build, tests, and search benchmark. The Makefile pins the required SwiftFormat
+build, tests, and performance gate. The Makefile pins the required SwiftFormat
 and SwiftLint versions.
+
+### Performance
+
+`make benchmark` measures search, indexing, history storage, memory, idle cost
+and binary size, and fails when a metric passes its limit in
+`benchmarks/baseline.json`. `make profile-app` reads CPU, wakeups, memory and
+disk use of the running app. See [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 ## Features
 

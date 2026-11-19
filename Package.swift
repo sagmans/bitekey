@@ -35,5 +35,15 @@ let package = Package(
                 // apply here; test classes opt in with an explicit @MainActor instead.
             ]
         ),
+        // The performance gate. Its own target so `swift test` (debug) keeps the functional suite
+        // fast, and `make benchmark` can build this one with optimizations, as the shipped app is.
+        .testTarget(
+            name: "SweetMXBenchmarks",
+            dependencies: ["SweetMX"],
+            path: "Tests/SweetMXBenchmarks",
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ]
+        ),
     ]
 )

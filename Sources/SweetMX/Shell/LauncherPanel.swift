@@ -18,7 +18,6 @@ enum LauncherKeyCode {
     static let upArrow: UInt16 = 126
     static let downArrow: UInt16 = 125
     static let returnKey: UInt16 = 36
-    static let backspace: UInt16 = 51
 }
 
 /// A standard editing chord and the responder action it stands for.
@@ -61,6 +60,9 @@ struct EditingShortcut: Equatable {
 /// Non-activating, so opening it does not pull SweetMX to the front of the other apps, which keeps
 /// the app that will receive a paste focused. It can still become key, so the search field takes typing.
 final class LauncherPanel: NSPanel {
+    /// Match the Command-modified letter for layouts that remap keys while Command is held.
+    private static let deleteClipKey = "d"
+
     /// Set by the controller. Returning false lets the event continue to the responder chain, so a key
     /// the shell declines still behaves as it would in any window.
     var keyHandler: ((LauncherKey) -> Bool)?
@@ -109,7 +111,6 @@ final class LauncherPanel: NSPanel {
         case LauncherKeyCode.escape: return .escape
         case LauncherKeyCode.upArrow: return held.isEmpty ? .up : nil
         case LauncherKeyCode.downArrow: return held.isEmpty ? .down : nil
-        case LauncherKeyCode.backspace: return held == .command ? .deleteClip(isRepeat: event.isARepeat) : nil
         case LauncherKeyCode.returnKey:
             if held.isEmpty {
                 return .activate
@@ -117,7 +118,9 @@ final class LauncherPanel: NSPanel {
             let isCopyChord = event.charactersIgnoringModifiers == CopyClipShortcut.key
                 && held == CopyClipShortcut.modifiers
             return isCopyChord ? .copy : nil
-        default: return nil
+        default:
+            guard held == .command, event.characters?.lowercased() == deleteClipKey else { return nil }
+            return .deleteClip(isRepeat: event.isARepeat)
         }
     }
 

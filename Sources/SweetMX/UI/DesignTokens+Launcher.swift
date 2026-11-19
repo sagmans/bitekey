@@ -34,7 +34,7 @@ extension DesignTokens.Copy {
     /// Hint of an application row: what Return does there.
     static let applicationRowHint = "Press Enter to launch this application"
     /// Announces keyboard actions for a clip, including the action available through its context menu.
-    static let clipRowHint = "Press Enter to paste, Option-Enter to copy, or Command-Delete to delete this clip"
+    static let clipRowHint = "Press Enter to paste, Option-Enter to copy, or Command-D to delete this clip"
     /// Name of the results list as a whole, so VoiceOver announces what the rows belong to.
     static let resultsLabel = "Search Results"
     /// Name of the launcher panel.

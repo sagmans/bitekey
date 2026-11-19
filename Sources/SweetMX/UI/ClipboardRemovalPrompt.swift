@@ -1,5 +1,63 @@
 import AppKit
 import OSLog
+import SwiftUI
+
+/// Sheet host that can take keyboard focus without pulling SweetMX ahead of the app behind the launcher.
+private final class ConfirmationSheetPanel: NSPanel {
+    /// Required so Return and Escape reach the sheet even while SweetMX stays non-activating.
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    /// A confirmation sheet is transient and must never take over the main-window role.
+    override var canBecomeMain: Bool {
+        false
+    }
+
+    /// Ensures Escape routed via accessibility or responder commands cancels the sheet just like the key monitor.
+    override func cancelOperation(_ sender: Any?) {
+        if let parent = sheetParent {
+            parent.endSheet(self, returnCode: .cancel)
+        } else {
+            super.cancelOperation(sender)
+        }
+    }
+}
+
+/// Single-action destructive prompt styled to match system Liquid Glass sheets while keeping a solid red
+/// primary button with white text. AppKit's `_NSAlertButton` ignores `bezelColor` and strips Return
+/// confirmation when `hasDestructiveAction` is set, so single-clip confirmation renders its own glass sheet.
+private struct SingleClipConfirmationView: View {
+    let onConfirm: () -> Void
+    @FocusState private var isDeleteFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Metrics.confirmationTextSpacing) {
+            Text(DesignTokens.Copy.deleteClipTitle)
+                .font(DesignTokens.Typography.confirmationTitle)
+            Text(DesignTokens.Copy.deleteClipExplanation)
+                .font(DesignTokens.Typography.confirmationBody)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(action: onConfirm) {
+                Text(DesignTokens.Copy.deleteClip)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(DesignTokens.Palette.destructiveAction)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+            .focused($isDeleteFocused)
+            .padding(.top, DesignTokens.Metrics.confirmationButtonTopSpacing)
+        }
+        .padding(.top, DesignTokens.Metrics.confirmationTopPadding)
+        .padding(.horizontal, DesignTokens.Metrics.confirmationHorizontalPadding)
+        .padding(.bottom, DesignTokens.Metrics.confirmationBottomPadding)
+        .frame(width: DesignTokens.Metrics.confirmationWidth)
+        .onAppear {
+            isDeleteFocused = true
+        }
+    }
+}
 
 /// Confirms removing saved clipboard entries, because the removal cannot be undone.
 ///
@@ -22,15 +80,38 @@ enum ClipboardRemovalPrompt {
         }
     }
 
-    /// One focused action keeps keyboard deletion quick and uses the system's default button contrast.
+    /// One focused red destructive action keeps keyboard deletion quick while clearly signalling irreversibility.
     private static func presentSingleClip(_ id: UUID, for model: LauncherModel, over window: NSWindow) {
-        let alert = NSAlert()
-        alert.messageText = DesignTokens.Copy.deleteClipTitle
-        alert.informativeText = DesignTokens.Copy.deleteClipExplanation
-        let delete = alert.addButton(withTitle: DesignTokens.Copy.deleteClip)
-        let sheet = alert.window
-        sheet.initialFirstResponder = delete
-        // A buttonless Cancel needs its own Escape handling. Keep the monitor scoped to this sheet.
+        let sheet = ConfirmationSheetPanel(
+            contentRect: .zero,
+            styleMask: [.titled, .fullSizeContentView, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        sheet.titleVisibility = .hidden
+        sheet.titlebarAppearsTransparent = true
+        sheet.isOpaque = false
+        sheet.backgroundColor = .clear
+        sheet.isMovable = false
+        sheet.isReleasedWhenClosed = false
+
+        var didConfirm = false
+        let confirm: () -> Void = { [weak sheet, weak model] in
+            // Guard against a second click or key event while the sheet dismissal animation runs.
+            guard !didConfirm, let sheet, let parent = sheet.sheetParent else { return }
+            didConfirm = true
+            // Drop the clip immediately upon confirmation instead of waiting for the sheet close animation.
+            model?.removeClips(.item(id))
+            parent.endSheet(sheet, returnCode: .alertFirstButtonReturn)
+        }
+
+        let host = NSHostingView(rootView: SingleClipConfirmationView(onConfirm: confirm))
+        let glass = NSGlassEffectView()
+        glass.contentView = host
+        sheet.contentView = glass
+        sheet.setContentSize(host.fittingSize)
+
+        // A buttonless Cancel needs its own Escape handling, and both Return keys must ignore repeats.
         guard let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak sheet] event in
             guard let sheet, event.window === sheet, let parent = sheet.sheetParent else { return event }
             switch event.keyCode {
@@ -39,7 +120,10 @@ enum ClipboardRemovalPrompt {
                 return nil
             case LauncherKeyCode.returnKey, LauncherKeyCode.keypadEnter:
                 // A Return held before opening the sheet must not confirm it.
-                return event.isARepeat ? nil : event
+                guard !event.isARepeat else { return nil }
+                guard event.modifierFlags.isDisjoint(with: CopyClipShortcut.relevantModifiers) else { return event }
+                confirm()
+                return nil
             default:
                 return event
             }
@@ -47,10 +131,9 @@ enum ClipboardRemovalPrompt {
             logger.error("Could not install the keyboard monitor for single-clip confirmation")
             return
         }
-        alert.beginSheetModal(for: window) { [weak model] response in
+
+        window.beginSheet(sheet) { _ in
             NSEvent.removeMonitor(monitor)
-            guard response == .alertFirstButtonReturn else { return }
-            model?.removeClips(.item(id))
         }
     }
 

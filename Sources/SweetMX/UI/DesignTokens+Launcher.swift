@@ -85,6 +85,9 @@ extension DesignTokens.Palette {
     /// Strength of the fill behind the link host in the preview header; its own value so retuning match
     /// underlays does not change the link badge.
     static let linkHostOpacity: Double = 0.18
+    /// Prominent fill for irreversible actions, kept red so destructive confirmations stand apart from the
+    /// default accent while preserving white label contrast on glass.
+    static let destructiveAction: Color = .red
     /// Opaque stand-in for glass in snapshot mode. Fixed sRGB violet-tinted tones keep the references independent
     /// of the display profile and of whatever sits behind the panel (ASG-1279); the light and dark values
     /// differ so text keeps the contrast it has over real glass in each appearance.
@@ -285,6 +288,18 @@ extension DesignTokens {
         /// Distance within which glass shapes in the container merge. Zero keeps the preview a separate
         /// shape from the body until a later polish step tunes the morph.
         static let glassMergeSpacing: CGFloat = 0
+        /// Width of the single-clip delete confirmation sheet, matching system alert sheet proportions.
+        static let confirmationWidth: CGFloat = 260
+        /// Top breathing room inside the confirmation sheet, matching system alert sheets.
+        static let confirmationTopPadding: CGFloat = 20
+        /// Side inset inside the confirmation sheet so text and button align on one margin.
+        static let confirmationHorizontalPadding: CGFloat = 20
+        /// Bottom inset below the action pill, slightly tighter than the top margin like system alerts.
+        static let confirmationBottomPadding: CGFloat = 16
+        /// Gap between the confirmation title and explanation text.
+        static let confirmationTextSpacing: CGFloat = 10
+        /// Extra vertical separation above the destructive action pill so copy and action read distinctly.
+        static let confirmationButtonTopSpacing: CGFloat = 6
     }
 
     /// The only place the launcher chooses fonts, so every surface shares one SF Pro scale modeled on
@@ -313,6 +328,10 @@ extension DesignTokens {
         static let toast = Font.callout.weight(.medium)
         /// Kind badge symbol, sized to sit beside the row title.
         static let badge = Font.title3
+        /// Bold heading of the single-clip confirmation sheet, matching system alert hierarchy.
+        static let confirmationTitle = Font.headline
+        /// Body explanation of the single-clip confirmation sheet, matching system alert copy size.
+        static let confirmationBody = Font.subheadline
     }
 
     /// Preview text metrics. AppKit text uses `NSFont`, so these are separate from `Typography`.

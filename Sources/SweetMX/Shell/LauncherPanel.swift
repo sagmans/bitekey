@@ -18,6 +18,7 @@ enum LauncherKeyCode {
     static let upArrow: UInt16 = 126
     static let downArrow: UInt16 = 125
     static let returnKey: UInt16 = 36
+    static let keypadEnter: UInt16 = 76
 }
 
 /// A standard editing chord and the responder action it stands for.
@@ -145,10 +146,11 @@ final class LauncherPanel: NSPanel {
         if dropsKeyEvents, event.type == .keyDown || event.type == .keyUp {
             return
         }
+        // A held Return can outlive a confirmation sheet and reach the next selected clip.
         if (firstResponder as? NSTextView)?.hasMarkedText() != true,
            let key = Self.launcherKey(for: event),
            Self.routes(key, firstResponder: firstResponder),
-           keyHandler?(key) == true
+           (key == .activate && event.isARepeat) || keyHandler?(key) == true
         {
             return
         }

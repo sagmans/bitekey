@@ -128,7 +128,7 @@ extension DesignTokens {
 
     /// Key bindings that are behavior, not user copy, so changing wording can never change a key.
     enum Keys {
-        /// Removal sheets keep Escape available even when Cancel is also the default button.
+        /// The Clear History sheet keeps Escape available when Cancel is also the default button.
         static let cancelKeyEquivalent = "\u{1B}"
     }
 

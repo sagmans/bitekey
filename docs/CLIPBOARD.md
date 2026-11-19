@@ -65,6 +65,7 @@ SweetMX cannot read or migrate the archive or one of its image files, it
 keeps the files intact and captures new clips for the current session.
 
 Select a clip and press **Command–D (⌘D)**, or right-click a clip and
-choose **Delete Clip…**. Choose **Delete Clip** to confirm, or press **Escape**
-to keep the clip. Choose **Clear History…** and confirm to remove all saved
-clips. Both actions leave the current system clipboard available for pasting.
+choose **Delete Clip…**. Press **Return** or click **Delete Clip** to confirm.
+Press **Escape** to keep the clip. Choose **Clear History…** and confirm to
+remove all saved clips. Both actions leave the current system clipboard
+available for pasting.

@@ -15,7 +15,7 @@ enum DesignTokens {
         // The menu advertises the panel shortcut without registering a competing binding for every row.
         static let deleteClipMenu = "Delete Clip… (⌘D)"
         static let deleteClipTitle = "Delete this clip?"
-        static let deleteClipExplanation = "This removes the saved clip from SweetMX. Your current clipboard stays available."
+        static let deleteClipExplanation = "Press Escape to keep this clip. Deleting it leaves your current clipboard available."
         static let clearHistoryMenu = "Clear History…"
         static let clearHistoryButton = "Clear History"
         static let cancel = "Cancel"

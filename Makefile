@@ -10,10 +10,11 @@
 
 APP_NAME := Bitekey
 BUNDLE_ID := com.assagman.bitekey
-# Pre-rename bundle ID, the source of the one-time data migration. `make install`
-# refuses while that app runs: both apps would register the same global shortcuts,
-# and the old app could write data after the migration copied it.
-LEGACY_BUNDLE_ID := com.assagman.applebox
+# Former bundle IDs, newest first, the sources of the one-time data migration.
+# `make install` refuses while any of them runs: both apps would register the same
+# global shortcuts, and the old app could write data after the migration copied it.
+# Keep in step with `legacySources` in LegacyDataMigration.swift, in the same order.
+LEGACY_BUNDLE_IDS := com.assagman.applebox
 BUILD_DIR := .build/release
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR := $(HOME)/Applications
@@ -356,10 +357,10 @@ local-signing:
 
 # Bundle first, then stop, so the running copy keeps working during the build.
 install: bundle stop
-	@swift "$(LOCAL_INSTALLER)" install "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app" "$(BUNDLE_ID)" "$(LEGACY_BUNDLE_ID)"
+	@swift "$(LOCAL_INSTALLER)" install "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app" "$(BUNDLE_ID)" $(LEGACY_BUNDLE_IDS)
 
 uninstall:
-	@swift "$(LOCAL_INSTALLER)" uninstall "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app" "$(BUNDLE_ID)" "$(LEGACY_BUNDLE_ID)"
+	@swift "$(LOCAL_INSTALLER)" uninstall "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app" "$(BUNDLE_ID)" $(LEGACY_BUNDLE_IDS)
 
 # ==============================================================================
 # Code Signing & Notarization

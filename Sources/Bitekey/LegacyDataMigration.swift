@@ -1,10 +1,10 @@
 import Foundation
 
-/// Carries a user's data over from the app's former name, so the rename does not look like data loss.
+/// Carries a user's data over from the app's former names, so a rename does not look like data loss.
 ///
 /// Runs once, first thing in `AppDelegate.startServices()`, before any store loads its files or
-/// reads its preferences. The legacy folder and legacy defaults domain are only ever read: the
-/// previous install stays intact, so a user can roll back to it and a failed migration loses nothing.
+/// reads its preferences. Legacy folders and legacy defaults domains are only ever read: previous
+/// installs stay intact, so a user can roll back and a failed migration loses nothing.
 nonisolated struct LegacyDataMigration {
     /// Outcome of one migration step.
     enum StepResult: Equatable {
@@ -53,8 +53,22 @@ nonisolated struct LegacyDataMigration {
         case copyIsNotDirectory
     }
 
-    static let legacyBundleID = "com.assagman.applebox"
-    static let legacyFolderName = "AppleBox"
+    /// One former name: where its data folder and its preferences lived.
+    struct LegacySource: Equatable {
+        let bundleID: String
+        let folderName: String
+    }
+
+    /// Newest name first. A user may have run several former names; the newest one that left data
+    /// holds their latest data. Each step picks on its own: the folder comes from the newest name
+    /// that left anything at its folder path, the preferences from the newest domain that holds an
+    /// allowlisted key, so a name that left only one of the two does not block the other.
+    /// Keep in step with `LEGACY_BUNDLE_IDS` in the Makefile, which guards installs. No entry may
+    /// equal the current bundle ID or `AppDataLocation.folderName`: the app's own domain cannot be
+    /// opened as a suite and is dropped, and its own folder would always look like legacy data.
+    static let legacySources = [
+        LegacySource(bundleID: "com.assagman.applebox", folderName: "AppleBox"),
+    ]
     /// Allowlist, not denylist: the legacy domain also reports global-domain keys and keys of
     /// unrelated features, which must not leak into the new domain.
     static let allowedKeyPrefixes = ["GlobalShortcut."]
@@ -79,12 +93,14 @@ nonisolated struct LegacyDataMigration {
 
     private let fileSystem: FileSystemProtocol
     private let preferences: UserDefaults
-    private let legacyPreferences: UserDefaults?
+    /// Same order as `legacySources`, newest first. A domain that cannot be opened is dropped for
+    /// good: `UserDefaults(suiteName:)` fails only for an invalid name, which no retry fixes.
+    private let legacyPreferences: [UserDefaults]
 
     init(
         fileSystem: FileSystemProtocol = SystemFileManager(),
         preferences: UserDefaults = .standard,
-        legacyPreferences: UserDefaults? = UserDefaults(suiteName: LegacyDataMigration.legacyBundleID)
+        legacyPreferences: [UserDefaults] = LegacyDataMigration.legacySources.compactMap { UserDefaults(suiteName: $0.bundleID) }
     ) {
         self.fileSystem = fileSystem
         self.preferences = preferences
@@ -111,25 +127,21 @@ nonisolated struct LegacyDataMigration {
 
         let appSupport = appSupportURL
         let newFolder = appSupport.appendingPathComponent(AppDataLocation.folderName, isDirectory: true)
-        let legacyFolder = appSupport.appendingPathComponent(Self.legacyFolderName, isDirectory: true)
 
-        let legacyKind: FileItemKind
+        let legacyFolder: URL
         do {
-            legacyKind = try fileSystem.itemKind(at: legacyFolder)
+            switch try newestLegacyFolder(in: appSupport) {
+            case .none:
+                preferences.set(true, forKey: Self.folderMarkerKey)
+                return .skipped
+            case .notDirectory:
+                return .failed(Failure(stringLiteral: Self.legacyNotDirectoryDetail))
+            case let .directory(folder):
+                legacyFolder = folder
+            }
         } catch {
             // A read error is retried next launch, never remembered as "nothing to migrate".
             return .failed(Failure(error))
-        }
-        // A legacy symlink could point anywhere and is never followed, but it shows as a failure
-        // rather than being skipped silently.
-        switch legacyKind {
-        case .missing:
-            preferences.set(true, forKey: Self.folderMarkerKey)
-            return .skipped
-        case .symbolicLink, .other:
-            return .failed(Failure(stringLiteral: Self.legacyNotDirectoryDetail))
-        case .directory:
-            break
         }
         // Merging into existing new data could overwrite it, so report it on every launch instead.
         guard !fileSystem.fileExists(atPath: newFolder.path) else {
@@ -148,6 +160,31 @@ nonisolated struct LegacyDataMigration {
         } catch {
             return .failed(failure(for: error, cleaning: temp))
         }
+    }
+
+    /// What the newest former name left at its folder path.
+    private enum LegacyFolder {
+        case none
+        case directory(URL)
+        case notDirectory
+    }
+
+    /// The first former name that left anything at its folder path decides, so the newest data
+    /// wins. A legacy symlink could point anywhere and is never followed; it shows as a failure
+    /// rather than being skipped silently, and an older name is not tried in its place.
+    private func newestLegacyFolder(in appSupport: URL) throws -> LegacyFolder {
+        for source in Self.legacySources {
+            let folder = appSupport.appendingPathComponent(source.folderName, isDirectory: true)
+            switch try fileSystem.itemKind(at: folder) {
+            case .missing:
+                continue
+            case .directory:
+                return .directory(folder)
+            case .symbolicLink, .other:
+                return .notDirectory
+            }
+        }
+        return .none
     }
 
     /// Never leave a partial copy that a later run could mistake for real data; a cleanup error
@@ -199,11 +236,18 @@ nonisolated struct LegacyDataMigration {
 
     private func migratePreferences() -> StepResult {
         guard !preferences.bool(forKey: Self.markerKey) else { return .skipped }
-        // No legacy domain means nothing can be read; leave the marker unset so a later launch retries.
-        guard let legacy = legacyPreferences?.dictionaryRepresentation() else { return .skipped }
+        // Empty only when no former name is configured or tests inject none; nothing to read, so
+        // the marker stays unset and a later build that adds a source still runs this step.
+        guard !legacyPreferences.isEmpty else { return .skipped }
 
+        // Only the newest domain that holds any allowlisted key is used, never a mix: shortcut
+        // presets must be unique, and keys merged from two names could clash in a set the user
+        // never chose. Keys already set under the current name are never overwritten.
+        let source = legacyPreferences.lazy
+            .map { $0.dictionaryRepresentation().filter { isAllowed($0.key) } }
+            .first { !$0.isEmpty } ?? [:]
         var copied = false
-        for (key, value) in legacy where isAllowed(key) && preferences.object(forKey: key) == nil {
+        for (key, value) in source where preferences.object(forKey: key) == nil {
             preferences.set(value, forKey: key)
             copied = true
         }

@@ -23,7 +23,7 @@ final class LegacyDataMigrationTests: XCTestCase {
     private let appSupport = URL(fileURLWithPath: Fixture.appSupportPath)
 
     private var legacyFolder: URL {
-        appSupport.appendingPathComponent(LegacyDataMigration.legacyFolderName, isDirectory: true)
+        appSupport.appendingPathComponent(LegacyDataMigration.legacySources[0].folderName, isDirectory: true)
     }
 
     private var newFolder: URL {
@@ -61,7 +61,7 @@ final class LegacyDataMigrationTests: XCTestCase {
     }
 
     private func makeMigration() -> LegacyDataMigration {
-        LegacyDataMigration(fileSystem: fileSystem, preferences: preferences, legacyPreferences: legacyPreferences)
+        LegacyDataMigration(fileSystem: fileSystem, preferences: preferences, legacyPreferences: [legacyPreferences])
     }
 
     func testCopiesLegacyFolderWhenNewMissing() {
@@ -236,7 +236,7 @@ final class LegacyDataMigrationTests: XCTestCase {
     func testCopyThatIsNotDirectoryIsRemovedAndFails() {
         // The wrapper reports the copy as a non-directory, standing in for a copy that yielded a file or link.
         addLegacyFolder()
-        let migration = LegacyDataMigration(fileSystem: NonDirectoryCopyFileSystem(base: fileSystem), preferences: preferences, legacyPreferences: legacyPreferences)
+        let migration = LegacyDataMigration(fileSystem: NonDirectoryCopyFileSystem(base: fileSystem), preferences: preferences, legacyPreferences: [legacyPreferences])
 
         guard case .failed = migration.run().folder else { return XCTFail("expected failed") }
         XCTAssertEqual(fileSystem.moveItemCalls.count, 0)
@@ -274,7 +274,7 @@ final class LegacyDataMigrationTests: XCTestCase {
     }
 
     func testNilLegacyPreferencesLeavesMarkerUnset() {
-        let migration = LegacyDataMigration(fileSystem: fileSystem, preferences: preferences, legacyPreferences: nil)
+        let migration = LegacyDataMigration(fileSystem: fileSystem, preferences: preferences, legacyPreferences: [])
 
         XCTAssertEqual(migration.run().preferences, .skipped)
         XCTAssertFalse(preferences.bool(forKey: Fixture.markerKey))

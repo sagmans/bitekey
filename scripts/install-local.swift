@@ -11,14 +11,14 @@ private enum LocalInstall {
         case invalidArguments
         case unexpectedBundle(URL)
         case running
-        case legacyRunning
+        case legacyRunning(String)
 
         var errorDescription: String? {
             switch self {
-            case .invalidArguments: "Expected install or uninstall, source bundle, destination bundle, bundle identifier, and legacy bundle identifier."
+            case .invalidArguments: "Expected install or uninstall, source bundle, destination bundle, bundle identifier, and one or more legacy bundle identifiers."
             case let .unexpectedBundle(url): "Refusing to replace or remove an unexpected item at \(url.path)."
             case .running: "Quit Bitekey from its menu before installing, updating, or uninstalling."
-            case .legacyRunning: "Quit AppleBox and turn off its login item before you install Bitekey."
+            case let .legacyRunning(name): "Quit \(name) and turn off its login item before you install Bitekey."
             }
         }
     }
@@ -26,18 +26,21 @@ private enum LocalInstall {
     private static let fileManager = FileManager.default
     private static let stagingPrefix = ".bitekey-install-"
     private static let privateDirectoryMode = 0o700
-    private static let argumentCount = 6
+    /// Program, action, source, destination and identifier come first; legacy identifiers follow.
+    private static let legacyIdentifiersStart = 5
+    /// At least one legacy identifier, so the running-app guard can never be skipped by accident.
+    private static let minimumArgumentCount = legacyIdentifiersStart + 1
 
     static func run(_ arguments: [String]) throws {
-        guard arguments.count == argumentCount, let action = Action(rawValue: arguments[1]) else {
+        guard arguments.count >= minimumArgumentCount, let action = Action(rawValue: arguments[1]) else {
             throw Failure.invalidArguments
         }
         let source = URL(fileURLWithPath: arguments[2], isDirectory: true)
         let destination = URL(fileURLWithPath: arguments[3], isDirectory: true)
         let identifier = arguments[4]
-        let legacyIdentifier = arguments[5]
+        let legacyIdentifiers = Array(arguments[legacyIdentifiersStart...])
         // An empty or equal ID would make the guard test the wrong app, so fail closed.
-        guard !legacyIdentifier.isEmpty, legacyIdentifier != identifier else {
+        guard legacyIdentifiers.allSatisfy({ !$0.isEmpty && $0 != identifier }) else {
             throw Failure.invalidArguments
         }
         guard NSRunningApplication.runningApplications(withBundleIdentifier: identifier).isEmpty else {
@@ -50,8 +53,12 @@ private enum LocalInstall {
             // Only install is guarded: the old app would register the same global shortcuts,
             // and it could write data after the first Bitekey launch copies it. Uninstall
             // touches neither, so it must work while the old app runs.
-            guard NSRunningApplication.runningApplications(withBundleIdentifier: legacyIdentifier).isEmpty else {
-                throw Failure.legacyRunning
+            // Every former name counts: any of them would clash in the same way.
+            for legacyIdentifier in legacyIdentifiers {
+                if let running = NSRunningApplication.runningApplications(withBundleIdentifier: legacyIdentifier).first {
+                    // The app name is what the user sees in the menu bar; the ID is the fallback.
+                    throw Failure.legacyRunning(running.localizedName ?? legacyIdentifier)
+                }
             }
             guard try validateInstalledBundle(at: source, identifier: identifier) else {
                 throw Failure.unexpectedBundle(source)

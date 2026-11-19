@@ -1,17 +1,21 @@
 {
   "fill" : {
-    "solid" : "srgb:0.16471,0.16471,0.16471,1.00000"
+    "solid" : "srgb:0.24314,0.20392,0.35294,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "Legend.svg",
-          "name" : "Legend"
+          "image-name" : "Stripes.svg",
+          "name" : "Stripes"
         },
         {
-          "image-name" : "Face.svg",
-          "name" : "Face"
+          "image-name" : "Body.svg",
+          "name" : "Body"
+        },
+        {
+          "image-name" : "Wrapper.svg",
+          "name" : "Wrapper"
         }
       ]
     }

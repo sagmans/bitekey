@@ -21,9 +21,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   from AppleBox, or from Bitekey, the name of unreleased builds in between.
   Each kind of data comes from the newest old app that left it. Old data is
   not changed. macOS asks again for the paste permission.
-- Replaced the apple-shaped logo with a grayscale keycap icon. The app ships
-  a native glass icon, so `make bundle` and `make install` need full Xcode,
-  not only the Command Line Tools
+- Replaced the apple-shaped logo with a candy (bonbon) icon on the launcher's
+  violet. The app ships a native glass icon, so `make bundle` and
+  `make install` need full Xcode, not only the Command Line Tools
 - CI installs exact, checksum-verified SwiftFormat 0.63.1 and SwiftLint 0.65.1
   instead of the latest Homebrew release, so style checks no longer drift
 - `make format` and `make format-check` (and so the pre-commit hook) require

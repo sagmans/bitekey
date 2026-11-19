@@ -1,62 +1,82 @@
-// The approved mark as data: palette, key geometry, legend variants and output
-// paths. Every other file derives its shapes and file names from here.
+// The approved mark as data: palette, bonbon geometry and output paths. Every
+// other file derives its shapes and file names from here.
 
 import Foundation
 
-/// Grayscale palette of the mark; the brand is deliberately color-free.
+/// Colors of the "Bonbon" sketch the owner picked. The fill is the launcher's
+/// deep violet accent (`DesignTokens.Palette.appTint`, dark value), so the Dock
+/// icon and the open panel read as one brand; change both together.
 enum Palette {
-    static let skirt = RGBColor(hex: 0x2A2A2A)
-    static let faceSide = RGBColor(hex: 0x3A3A3A)
-    static let face = RGBColor(hex: 0x505050)
-    static let ink = RGBColor(hex: 0xF2F2F0)
+    static let fill = RGBColor(hex: 0x3E345A)
+    static let wrapper = RGBColor(hex: 0xB9A4FF)
+    static let body = RGBColor(hex: 0xFF8FC2)
+    static let stripe = RGBColor(hex: 0xFFF3E4)
     /// Template images carry meaning only in alpha, so the menu mark is pure black.
     static let template = RGBColor(hex: 0x000000)
 }
 
-/// Keycap shapes in the 140-unit drawing the owner approved; every other
-/// space is derived from it so the approved proportions survive.
-enum KeyGeometry {
-    static let drawingSize = 140.0
-    static let skirt = RoundedRect(x: 10, y: 10, width: 120, height: 120, radius: 24)
-    /// The lip shows below the face so the top reads as raised.
-    static let lip = RoundedRect(x: 20, y: 13, width: 100, height: 94, radius: 18)
-    static let face = RoundedRect(x: 24, y: 14, width: 92, height: 86, radius: 15)
+/// The candy in the 100-unit drawing of the approved sketch; the canvas and
+/// the menu mark scale it uniformly, so the approved proportions survive.
+enum Bonbon {
+    static let drawingSize = 100.0
+    static let center = Point(x: 50, y: 50)
+    /// Tilted so the candy reads as a tossed sweet, not as a flat badge.
+    static let tiltDegrees = -20.0
+    static let body = Ellipse(center: center, radiusX: 23, radiusY: 17)
+    /// Where both wrapper ends meet the body, just inside its left edge so no gap shows.
+    static let wrapperTip = Point(x: 30, y: center.y)
+    /// The twisted wrapper end; the right end mirrors it across the center.
+    static let wrapper = Fan(tip: wrapperTip, outerTop: Point(x: 10, y: center.y - 16), pinch: Point(x: 14, y: center.y), outerBottom: Point(x: 10, y: center.y + 16))
+    /// Diagonal candy stripes; the ends sit far enough inside the body that
+    /// the round caps stay on the candy. `checkStripesInsideBody` enforces it.
+    static let stripes = [
+        Segment(from: Point(x: 40, y: 38), to: Point(x: 48, y: 63)),
+        Segment(from: Point(x: 50, y: 37), to: Point(x: 59, y: 62)),
+        Segment(from: Point(x: 61, y: 39), to: Point(x: 66, y: 56)),
+    ]
+    static let stripeWidth = 4.0
+    /// Points tested on each cap circle; enough that a gap between samples
+    /// cannot hide a visible overhang at the 1024 px canvas.
+    static let capSamples = 64
+    /// Highest normalized ellipse value a cap point may reach. Below 1, so a
+    /// cap never shares the body's antialiased edge pixel and float rounding
+    /// cannot flip the check.
+    static let capEllipseLimit = 0.95
+
+    /// Fails the run when a stripe would draw past the body. A round-capped
+    /// stroke is the convex hull of its two end discs, and the body is
+    /// convex, so checking both end discs covers the whole stripe.
+    static func checkStripesInsideBody(path: String) throws {
+        let radius = stripeWidth / 2
+        for (index, stripe) in stripes.enumerated() {
+            for end in [stripe.from, stripe.to] {
+                for sample in 0 ..< capSamples {
+                    let angle = 2 * Double.pi * Double(sample) / Double(capSamples)
+                    let edge = Point(x: end.x + radius * cos(angle), y: end.y + radius * sin(angle))
+                    guard body.normalizedDistance(to: edge) <= capEllipseLimit else {
+                        throw RenderFailure.invalidOutput(path: path, reason: "stripe \(index) cap at (\(end.x), \(end.y)) reaches (\(edge.x), \(edge.y)), too close to or outside the body edge (limit \(capEllipseLimit)); move that end inward.")
+                    }
+                }
+            }
+        }
+    }
 }
 
-/// Values shared by both legends so the app and menu marks fade the same way.
-enum LegendSpace {
-    /// Legend geometry is authored in a square of this size, then placed on the key.
-    static let size = 100.0
-    static let peakOpacity = 0.80
-    static let floorOpacity = 0.15
-    static let tileCornerRatio = 0.25
+/// The menu mark: a solid silhouette with wider wrapper ends and a rounder
+/// body and no stripes, because stripes blur into noise at 18 px.
+enum MenuMark {
+    /// The menu SVG is authored in the drawing's own units.
+    static let scale = 1.0
+    static let body = Ellipse(center: Bonbon.center, radiusX: 25, radiusY: 19)
+    static let wrapper = Fan(tip: Bonbon.wrapperTip, outerTop: Point(x: 6, y: Bonbon.center.y - 20), pinch: Point(x: 12, y: Bonbon.center.y), outerBottom: Point(x: 6, y: Bonbon.center.y + 20))
 }
 
-/// H3 "Fine grid": the dense app-icon legend, readable at Dock sizes.
-enum AppLegend {
-    static let grid = GridSpec(count: 5, pad: 18, dotRadius: 4.5, pick: GridCell(column: 3, row: 1), tileSize: 17, fall: 0.17)
-    /// One uniform scale keeps dots round; the sketches' non-uniform scale squashed them.
-    static let scale = 0.86
-}
-
-/// M2 "4×4": fewer, larger dots so the menu mark survives 18 px.
-enum MenuLegend {
-    static let grid = GridSpec(count: 4, pad: 22, dotRadius: 6.5, pick: GridCell(column: 2, row: 1), tileSize: 22, fall: 0.22)
-    static let outline = RoundedRect(x: 14, y: 14, width: 112, height: 112, radius: 24)
-    static let strokeWidth = 11.0
-    static let offset = 22.0
-    static let scale = 0.96
-}
-
-/// The `.icon` canvas; the skirt region of the drawing fills it edge to edge
-/// because macOS draws its own squircle and glass around the solid fill.
+/// The `.icon` canvas; the drawing fills it edge to edge, because macOS draws
+/// its own squircle and glass around the solid fill.
 enum Canvas {
     static let size = 1024.0
-    /// Derived from the skirt, so the canvas follows the approved drawing if it changes.
-    static var mapping: Placement {
-        let scale = size / KeyGeometry.skirt.width
-        return Placement(dx: -KeyGeometry.skirt.x * scale, dy: -KeyGeometry.skirt.y * scale, scale: scale)
-    }
+    /// Derived from the drawing, so the canvas follows it if the drawing size changes.
+    static let scale = size / Bonbon.drawingSize
 }
 
 /// Output locations, relative to the repository root.
@@ -78,13 +98,15 @@ enum OutputPath {
     static let appIcon = "Resources/AppIcon.icns"
 }
 
-/// Layers of the `.icon` bundle, declared in paint order, bottom first.
+/// Layers of the `.icon` bundle, declared in paint order, bottom first. Each
+/// candy part is its own layer, so the macOS glass gives every part depth.
 enum IconLayer: String, CaseIterable {
-    case face = "Face"
-    case legend = "Legend"
+    case wrapper = "Wrapper"
+    case body = "Body"
+    case stripes = "Stripes"
 
-    /// Icon Composer lists layers top first; a probe with `ictool` hid the
-    /// legend under the face when they were listed bottom first.
+    /// Icon Composer lists layers top first; a probe with `ictool` hid upper
+    /// layers under lower ones when they were listed bottom first.
     static var manifestOrder: [IconLayer] {
         allCases.reversed()
     }
@@ -102,8 +124,9 @@ enum IconLayer: String, CaseIterable {
     /// An exhaustive switch makes a new layer fail to compile until it has artwork.
     var svg: String {
         switch self {
-        case .face: faceLayerSVG()
-        case .legend: legendLayerSVG()
+        case .wrapper: canvasLayerSVG(wrapperSVG(Bonbon.wrapper, color: Palette.wrapper))
+        case .body: canvasLayerSVG(ellipseSVG(Bonbon.body, color: Palette.body))
+        case .stripes: canvasLayerSVG(stripesSVG(Bonbon.stripes, width: Bonbon.stripeWidth, color: Palette.stripe))
         }
     }
 }
@@ -151,81 +174,53 @@ struct RGBColor {
     }
 }
 
-/// A rounded rectangle in drawing units; every key and tile shape is one.
-struct RoundedRect {
+/// A point in drawing units.
+struct Point {
     let x: Double
     let y: Double
-    let width: Double
-    let height: Double
-    let radius: Double
 
-    /// Used to center the legend on the face.
-    var centerX: Double {
-        x + width / 2
-    }
-
-    /// Used to center the legend on the face.
-    var centerY: Double {
-        y + height / 2
+    /// The right wrapper end is the left one reflected across the candy's vertical axis.
+    func mirrored(acrossX axis: Double) -> Point {
+        Point(x: 2 * axis - x, y: y)
     }
 }
 
-/// A legend position; the fade is measured between cells, not points.
-struct GridCell: Equatable {
-    let column: Int
-    let row: Int
+/// The candy body.
+struct Ellipse {
+    let center: Point
+    let radiusX: Double
+    let radiusY: Double
 
-    /// Manhattan distance, the approved fade metric: it follows keyboard rows and columns.
-    func distance(to other: GridCell) -> Int {
-        abs(column - other.column) + abs(row - other.row)
+    /// The menu-bar floor check measures the mark against this area.
+    var area: Double {
+        Double.pi * radiusX * radiusY
+    }
+
+    /// 1 on the outline, below 1 inside; the stripe check compares it with a
+    /// limit so caps keep clear of the body edge.
+    func normalizedDistance(to point: Point) -> Double {
+        let dx = (point.x - center.x) / radiusX
+        let dy = (point.y - center.y) / radiusY
+        return dx * dx + dy * dy
     }
 }
 
-/// One legend variant; H3 and M2 differ only in these values, so a single
-/// emitter keeps their fade rule identical.
-struct GridSpec {
-    let count: Int
-    let pad: Double
-    let dotRadius: Double
-    let pick: GridCell
-    let tileSize: Double
-    /// Opacity lost per grid step away from the picked tile.
-    let fall: Double
+/// A twisted wrapper end: straight edges from the tip, closed by a curve
+/// that bows in toward the pinch, so the paper looks gathered.
+struct Fan {
+    let tip: Point
+    let outerTop: Point
+    let pinch: Point
+    let outerBottom: Point
 
-    /// Spacing that puts the first and last dots exactly on the pads.
-    var step: Double {
-        (LegendSpace.size - 2 * pad) / Double(count - 1)
-    }
-
-    /// Same formula for rows and columns, so the grid stays square.
-    func center(_ index: Int) -> Double {
-        pad + Double(index) * step
-    }
-
-    /// Neighbours start at the peak and fade per step, never below the floor, so far dots stay visible.
-    func opacity(at cell: GridCell) -> Double {
-        max(LegendSpace.floorOpacity, LegendSpace.peakOpacity - fall * Double(cell.distance(to: pick) - 1))
+    /// Builds the opposite end, so both ends always match.
+    func mirrored(acrossX axis: Double) -> Fan {
+        Fan(tip: tip.mirrored(acrossX: axis), outerTop: outerTop.mirrored(acrossX: axis), pinch: pinch.mirrored(acrossX: axis), outerBottom: outerBottom.mirrored(acrossX: axis))
     }
 }
 
-/// Uniform scale then offset; only uniform scales are allowed so dots stay round.
-struct Placement {
-    let dx: Double
-    let dy: Double
-    let scale: Double
-
-    /// Composes placements, so the legend can be placed on the key and the key on the canvas.
-    func then(_ outer: Placement) -> Placement {
-        Placement(dx: dx * outer.scale + outer.dx, dy: dy * outer.scale + outer.dy, scale: scale * outer.scale)
-    }
-
-    /// Bakes the placement into shapes that are emitted without a transform.
-    func apply(_ rect: RoundedRect) -> RoundedRect {
-        RoundedRect(x: rect.x * scale + dx, y: rect.y * scale + dy, width: rect.width * scale, height: rect.height * scale, radius: rect.radius * scale)
-    }
-
-    /// For groups that keep their own coordinates, such as the legend.
-    var svgTransform: String {
-        "translate(\(svgNumber(dx)),\(svgNumber(dy))) scale(\(svgNumber(scale)))"
-    }
+/// One stripe, drawn with round caps.
+struct Segment {
+    let from: Point
+    let to: Point
 }

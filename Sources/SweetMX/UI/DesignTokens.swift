@@ -66,7 +66,8 @@ enum DesignTokens {
     /// Colors for tint, highlight and clip kinds (spec section 4, "Palette"). Semantic names let a theme
     /// change happen here without touching views.
     enum Palette {
-        /// Accent fill of apps mode: the deep violet of the keycap icon's tinted-dark rendition, so the
+        /// Accent fill of apps mode: the deep violet behind the bonbon in the app icon (dark value; the
+        /// icon generator's `Palette.fill` holds the same color, change both together), so the
         /// launcher reads as part of the icon instead of borrowing the user's system accent. Used only for
         /// fills (selection capsule, hairline); in dark mode it is too dark for marks, see `appInk`. The
         /// light value is a lighter violet, because black row text must keep 4.5:1 on the capsule even at

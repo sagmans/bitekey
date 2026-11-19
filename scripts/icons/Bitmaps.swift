@@ -12,24 +12,17 @@ enum MenuBitmap {
         (OutputPath.menuTemplate, 1),
         (OutputPath.menuTemplateRetina, 2),
     ]
-    /// Share of the ideal outline ring's area that must be visible. The ring
-    /// alone is about 74 px at 18 px and 296 px at 36 px; antialiasing and the
-    /// dots raise the real counts to 202 and 666. Half the ring is far below
-    /// any correct render, yet blank or mostly missing art is far below it.
-    static let minimumOutlineShare = 0.5
-    /// A rounded rectangle's perimeter is its square perimeter minus, at each
-    /// of the 4 corners, the 2r of straight edge replaced by a quarter circle.
-    private static let cornerCount = 4.0
+    /// Share of the candy body's ideal area that must be visible. The body
+    /// alone is about 48 px at 18 px and 193 px at 36 px; the wrapper ends
+    /// and antialiasing raise the real counts well above it. Half the body is
+    /// far below any correct render, yet blank or mostly missing art is far below it.
+    static let minimumBodyShare = 0.5
 
-    /// Minimum count of pixels with alpha > 0, from the outline in the
-    /// approved drawing, so the floor follows the mark if it changes.
+    /// Minimum count of pixels with alpha > 0, from the body in the approved
+    /// drawing, so the floor follows the mark if it changes.
     static func minimumVisiblePixels(pixels: Int) -> Int {
-        let outline = MenuLegend.outline
-        let straight = 2 * (outline.width + outline.height)
-        let perimeter = straight - cornerCount * (2 * outline.radius - Double.pi * outline.radius / 2)
-        let scale = Double(pixels) / KeyGeometry.drawingSize
-        let ringArea = perimeter * MenuLegend.strokeWidth * scale * scale
-        return Int(ringArea * minimumOutlineShare)
+        let scale = Double(pixels) / Bonbon.drawingSize
+        return Int(MenuMark.body.area * scale * scale * minimumBodyShare)
     }
 }
 

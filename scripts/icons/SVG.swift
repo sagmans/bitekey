@@ -22,65 +22,47 @@ func svgDocument(size: Double, body: [String]) -> String {
     return ([header] + body + ["</svg>"]).joined(separator: "\n") + "\n"
 }
 
-/// One emitter for every rectangle, so all share the same number format.
-func svgRect(_ rect: RoundedRect, attributes: String = "") -> String {
-    let geometry = "x=\"\(svgNumber(rect.x))\" y=\"\(svgNumber(rect.y))\" width=\"\(svgNumber(rect.width))\" height=\"\(svgNumber(rect.height))\" rx=\"\(svgNumber(rect.radius))\""
-    return "<rect \([geometry, attributes].filter { !$0.isEmpty }.joined(separator: " "))/>"
+/// The body; one emitter, so the app and menu marks share its number format.
+func ellipseSVG(_ ellipse: Ellipse, color: RGBColor) -> String {
+    "<ellipse cx=\"\(svgNumber(ellipse.center.x))\" cy=\"\(svgNumber(ellipse.center.y))\" rx=\"\(svgNumber(ellipse.radiusX))\" ry=\"\(svgNumber(ellipse.radiusY))\" fill=\"\(color.svg)\"/>"
 }
 
-/// Legend in its 100-unit space, row by row; the caller places it on the key.
-func legendSVG(grid: GridSpec, color: RGBColor) -> String {
-    var lines = ["<g fill=\"\(color.svg)\">"]
-    for row in 0 ..< grid.count {
-        for column in 0 ..< grid.count {
-            let cell = GridCell(column: column, row: row)
-            let cx = grid.center(column)
-            let cy = grid.center(row)
-            if cell == grid.pick {
-                let half = grid.tileSize / 2
-                let tile = RoundedRect(x: cx - half, y: cy - half, width: grid.tileSize, height: grid.tileSize, radius: grid.tileSize * LegendSpace.tileCornerRatio)
-                lines.append(svgRect(tile))
-            } else {
-                lines.append("<circle cx=\"\(svgNumber(cx))\" cy=\"\(svgNumber(cy))\" r=\"\(svgNumber(grid.dotRadius))\" opacity=\"\(svgNumber(grid.opacity(at: cell)))\"/>")
-            }
-        }
-    }
-    lines.append("</g>")
-    return lines.joined(separator: "\n")
+/// Both wrapper ends from one authored end, so they cannot drift apart.
+func wrapperSVG(_ fan: Fan, color: RGBColor) -> String {
+    [fan, fan.mirrored(acrossX: Bonbon.center.x)].map { end in
+        let d = "M\(svgPoint(end.tip)) L\(svgPoint(end.outerTop)) Q\(svgPoint(end.pinch)) \(svgPoint(end.outerBottom)) Z"
+        return "<path d=\"\(d)\" fill=\"\(color.svg)\"/>"
+    }.joined(separator: "\n")
 }
 
-/// Wraps content in one transform group, so it keeps its authored coordinates.
-func placedGroup(_ placement: Placement, content: String) -> [String] {
-    ["<g transform=\"\(placement.svgTransform)\">", content, "</g>"]
+/// All stripes in one path, so they share one stroke and paint as one layer.
+func stripesSVG(_ stripes: [Segment], width: Double, color: RGBColor) -> String {
+    let d = stripes.map { "M\(svgPoint($0.from)) L\(svgPoint($0.to))" }.joined(separator: " ")
+    return "<path d=\"\(d)\" fill=\"none\" stroke=\"\(color.svg)\" stroke-width=\"\(svgNumber(width))\" stroke-linecap=\"round\"/>"
 }
 
-/// Centers the 100-unit legend on the face with one uniform scale.
-var appLegendPlacement: Placement {
-    let side = LegendSpace.size * AppLegend.scale
-    let face = KeyGeometry.face
-    return Placement(dx: face.centerX - side / 2, dy: face.centerY - side / 2, scale: AppLegend.scale)
+/// `x y` with the shared number format.
+func svgPoint(_ point: Point) -> String {
+    "\(svgNumber(point.x)) \(svgNumber(point.y))"
 }
 
-/// The lip and face on the canvas; the skirt is the manifest fill, not a layer.
-func faceLayerSVG() -> String {
-    let mapping = Canvas.mapping
-    return svgDocument(size: Canvas.size, body: [
-        svgRect(mapping.apply(KeyGeometry.lip), attributes: "fill=\"\(Palette.faceSide.svg)\""),
-        svgRect(mapping.apply(KeyGeometry.face), attributes: "fill=\"\(Palette.face.svg)\""),
-    ])
+/// Wraps drawing-unit content in one transform group, so every shape keeps its
+/// authored coordinates. Scale first, then the candy's tilt about the drawing
+/// center, so every layer rotates about the same point and the parts stay aligned.
+func candyGroup(scale: Double, content: String) -> [String] {
+    let tilt = "rotate(\(svgNumber(Bonbon.tiltDegrees)) \(svgNumber(Bonbon.center.x)) \(svgNumber(Bonbon.center.y)))"
+    return ["<g transform=\"scale(\(svgNumber(scale))) \(tilt)\">", content, "</g>"]
 }
 
-/// A separate layer, so the legend paints above the face in Icon Composer's layer order.
-func legendLayerSVG() -> String {
-    let placement = appLegendPlacement.then(Canvas.mapping)
-    return svgDocument(size: Canvas.size, body: placedGroup(placement, content: legendSVG(grid: AppLegend.grid, color: Palette.ink)))
+/// One app-icon layer on the full canvas; the fill is the manifest's solid, not a layer.
+func canvasLayerSVG(_ content: String) -> String {
+    svgDocument(size: Canvas.size, body: candyGroup(scale: Canvas.scale, content: content))
 }
 
-/// The menu mark in the 140-unit drawing, in template black only.
+/// The menu mark in the drawing, in template black only.
 func menuSVG() -> String {
-    let outline = svgRect(MenuLegend.outline, attributes: "fill=\"none\" stroke=\"\(Palette.template.svg)\" stroke-width=\"\(svgNumber(MenuLegend.strokeWidth))\"")
-    let placement = Placement(dx: MenuLegend.offset, dy: MenuLegend.offset, scale: MenuLegend.scale)
-    return svgDocument(size: KeyGeometry.drawingSize, body: [outline] + placedGroup(placement, content: legendSVG(grid: MenuLegend.grid, color: Palette.template)))
+    let content = [wrapperSVG(MenuMark.wrapper, color: Palette.template), ellipseSVG(MenuMark.body, color: Palette.template)].joined(separator: "\n")
+    return svgDocument(size: Bonbon.drawingSize, body: candyGroup(scale: MenuMark.scale, content: content))
 }
 
 /// Mirrors the `icon.json` layout Icon Composer reads; keys are fixed by that format.
@@ -101,7 +83,7 @@ struct IconFill: Encodable {
     let solid: String
 }
 
-/// One group holds both layers: the shape probed with `ictool` and `actool`.
+/// One group holds every layer: the shape probed with `ictool` and `actool`.
 struct IconGroup: Encodable {
     let layers: [IconLayerEntry]
 }
@@ -126,7 +108,7 @@ struct IconPlatforms: Encodable {
 /// Builds the manifest from the same constants as the layers, so names and colors cannot drift.
 func iconManifestJSON() throws -> Data {
     let alpha = String(format: "%.\(IconManifest.componentDigits)f", IconManifest.alpha)
-    let solid = "\(IconManifest.colorSpace):\(Palette.skirt.manifest(digits: IconManifest.componentDigits)),\(alpha)"
+    let solid = "\(IconManifest.colorSpace):\(Palette.fill.manifest(digits: IconManifest.componentDigits)),\(alpha)"
     let layers = IconLayer.manifestOrder.map { IconLayerEntry(imageName: $0.fileName, name: $0.rawValue) }
     let document = IconDocument(fill: .init(solid: solid), groups: [.init(layers: layers)], supportedPlatforms: .init(squares: [IconManifest.platform]))
     let encoder = JSONEncoder()

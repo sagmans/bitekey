@@ -44,6 +44,7 @@ enum Command: String, CaseIterable {
     /// Writes each source, then reads it back, so a bad file stops the run
     /// before `bitmaps` or `actool` consume it.
     private func writeSources() throws {
+        try Bonbon.checkStripesInsideBody(path: IconLayer.stripes.path)
         for layer in IconLayer.allCases {
             try Writer.write(Data(layer.svg.utf8), to: layer.path)
             try Writer.checkSVG(at: layer.path, size: Canvas.size)
@@ -51,7 +52,7 @@ enum Command: String, CaseIterable {
         try Writer.write(iconManifestJSON(), to: OutputPath.iconManifest)
         try Writer.checkManifest()
         try Writer.write(Data(menuSVG().utf8), to: OutputPath.menuSource)
-        try Writer.checkSVG(at: OutputPath.menuSource, size: KeyGeometry.drawingSize)
+        try Writer.checkSVG(at: OutputPath.menuSource, size: Bonbon.drawingSize)
     }
 }
 

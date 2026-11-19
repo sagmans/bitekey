@@ -285,20 +285,20 @@ final class LauncherModel {
 
         let newIndex = (selection ?? -1) + delta
         if newIndex < 0 {
-            setSelection(nil)
+            setSelection(nil, animated: true)
         } else if newIndex < resultCount {
-            setSelection(newIndex)
+            setSelection(newIndex, animated: true)
         }
     }
 
     /// Highlights a row the user pointed at; anything outside the list means no row.
     func select(_ index: Int) {
-        setSelection((0 ..< resultCount).contains(index) ? index : nil)
+        setSelection((0 ..< resultCount).contains(index) ? index : nil, animated: true)
     }
 
-    private func setSelection(_ index: Int?) {
+    private func setSelection(_ index: Int?, animated: Bool = false) {
         selection = index
-        rowSelection.select(index)
+        rowSelection.select(index, animated: animated)
         selectedRowID = index.flatMap(rowID(at:))
     }
 
@@ -488,6 +488,7 @@ final class LauncherModel {
         apps.onPublish = { [weak self] previousCount in self?.resultsPublished(in: .applications, previousCount: previousCount) }
         clips.onPublish = { [weak self] previousCount in self?.resultsPublished(in: .clipboard, previousCount: previousCount) }
         clips.onRowsRemoved = { [weak self] in self?.selectAfterClipboardRemoval() }
+        clips.onRemovalFailed = { [weak self] in self?.refreshPreservingSelection(in: .clipboard) }
         apps.onLaunched = { [weak self] in self?.onDismiss() }
         apps.onRecentsChanged = { [weak self] in
             guard let self, isPresented, mode == .applications,
@@ -502,7 +503,11 @@ final class LauncherModel {
     /// Keep a surviving selection by identity. For a deleted selection, prefer its successor and use
     /// its predecessor at the end of the list, so the next keypress has a visible target.
     private func selectAfterClipboardRemoval() {
-        guard mode == .clipboard, let selection else { return }
+        guard mode == .clipboard else { return }
+        guard let selection else {
+            rowSelection.select(nil, animated: false)
+            return
+        }
         let survivingIndex = clips.rows.firstIndex { $0.id == selectedClipID }
         let adjacentIndex = clips.rows.isEmpty ? nil : min(selection, clips.rows.count - 1)
         setSelection(survivingIndex ?? adjacentIndex)

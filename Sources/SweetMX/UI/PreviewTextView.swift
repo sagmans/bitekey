@@ -14,8 +14,8 @@ struct PreviewTextView: NSViewRepresentable {
     let matchedIndices: [Int]
     let isMonospaced: Bool
     let tint: Color
-    /// Seconds the text takes to fade in when another clip is shown; already reduced for Reduce Motion.
-    let fadeDuration: Double
+    /// Seconds the text takes to fade in when another clip is shown, or nil for an immediate swap.
+    let fadeDuration: Double?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -90,9 +90,9 @@ struct PreviewTextView: NSViewRepresentable {
             let styles = PreviewTextStyles(for: view)
 
             if needsRebuild {
-                // The first clip just appears; only a change from one clip to another cross-fades.
-                if isNewItem, shownID != nil {
-                    Self.fade(textView.enclosingScrollView, duration: view.fadeDuration)
+                // The first clip just appears; only interactive moves cross-fade to the next clip.
+                if isNewItem, shownID != nil, let fadeDuration = view.fadeDuration {
+                    Self.fade(textView.enclosingScrollView, duration: fadeDuration)
                 }
                 shownID = view.itemID
                 shownMonospaced = view.isMonospaced

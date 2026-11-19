@@ -122,8 +122,6 @@ final class ClipboardModel {
     private(set) var rowsAreRanked = false
     /// Bumped whenever `rows` is replaced; see `AppSearchModel.rowsGeneration`.
     private(set) var rowsGeneration = 0
-    /// Pending IDs let either delete entry point collapse the same row and restore it on write failure.
-    private(set) var departingIDs: Set<UUID> = []
     /// Includes failed removals so hiding the panel releases any cached images touched by a removal.
     private(set) var removalsFinished = 0
 
@@ -140,6 +138,17 @@ final class ClipboardModel {
     @ObservationIgnored var onPublish: ((_ previousCount: Int) -> Void)?
     /// Removal has a different selection rule from a new search or a background refresh.
     @ObservationIgnored var onRowsRemoved: (() -> Void)?
+    /// Tells the owner to re-query history after a failed removal write so still-stored clips return cleanly.
+    @ObservationIgnored var onRemovalFailed: (() -> Void)?
+
+    /// Reference-counted clip IDs whose removal is currently writing to disk. Non-observed because no view
+    /// animates pending writes; used to block duplicate prompts, prevent replay, and filter stale refreshes.
+    @ObservationIgnored private var pendingRemovalCounts: [UUID: Int] = [:]
+
+    /// Clip IDs currently waiting for a storage removal write to settle.
+    var departingIDs: Set<UUID> {
+        Set(pendingRemovalCounts.keys)
+    }
 
     @ObservationIgnored private(set) var manager: ClipboardManager?
     /// Remembered so a manager supplied later starts at the right poll rate.
@@ -230,10 +239,24 @@ final class ClipboardModel {
 
     private func publish(_ snapshot: ClipboardSnapshot) {
         let previousCount = rows.count
-        matches = snapshot.matches
-        rows = snapshot.rows
-        rowsAreRanked = snapshot.isRanked
-        rowsGeneration &+= 1
+        // Exclude clips whose removal is already reflected on screen while storage writes finish,
+        // so a concurrent refresh cannot flash a deleted clip back into the list.
+        let filteredMatches: [ClipboardManager.ClipboardSearchMatch]
+        let filteredRows: [ClipRowData]
+        if pendingRemovalCounts.isEmpty {
+            filteredMatches = snapshot.matches
+            filteredRows = snapshot.rows
+        } else {
+            filteredMatches = snapshot.matches.filter { pendingRemovalCounts[$0.item.id] == nil }
+            filteredRows = snapshot.rows.filter { pendingRemovalCounts[$0.id] == nil }
+        }
+        matches = filteredMatches
+        // Avoid bumping rowsGeneration when a post-removal refresh reproduces the exact visible list.
+        if filteredRows != rows || snapshot.isRanked != rowsAreRanked {
+            rows = filteredRows
+            rowsAreRanked = snapshot.isRanked
+            rowsGeneration &+= 1
+        }
         onPublish?(previousCount)
     }
 
@@ -272,39 +295,60 @@ final class ClipboardModel {
     /// A clip the user confirmed for deletion must stay unavailable while the write is in progress.
     @discardableResult
     func replay(id: UUID, pasteAutomatically: Bool, dismiss: () -> Void) -> Bool {
-        guard !departingIDs.contains(id), let item = item(id: id) else { return false }
+        guard pendingRemovalCounts[id] == nil, let item = item(id: id) else { return false }
         replayer.replay(item, pasteAutomatically: pasteAutomatically, dismiss: dismiss)
         return true
     }
 
     // MARK: - Removal and capture
 
-    /// Removal is confirmed by the store, so a failure is surfaced rather than assumed away.
+    /// Updates the visible list immediately on confirmation while storage persists in the background,
+    /// then restores still-stored clips with an error banner if persistence fails.
     func remove(_ removal: ClipboardManager.HistoryRemoval) {
         guard let manager else {
             removalStatus = .error(DesignTokens.Copy.removalFailed)
             return
         }
-        if case let .item(id) = removal {
-            guard departingIDs.insert(id).inserted else { return }
+        let trackedIDs: Set<UUID>
+        switch removal {
+        case let .item(id):
+            // Ignore duplicate confirmations while the same clip's storage write is still running.
+            guard pendingRemovalCounts[id] == nil else { return }
+            trackedIDs = [id]
+        case .all:
+            // Track every currently stored and visible clip so a concurrent refresh cannot flash
+            // cleared entries back, while copies captured afterward keep distinct IDs and survive.
+            trackedIDs = Set(matches.map(\.item.id)).union(manager.getHistory().map(\.id))
+        }
+        for id in trackedIDs {
+            pendingRemovalCounts[id, default: 0] += 1
         }
         removalStatus = nil
+        dropRows(for: removal)
         manager.removeHistory(removal) { [weak self] succeeded in
             guard let self else { return }
-            if succeeded {
-                dropRows(for: removal)
-            } else {
-                removalStatus = .error(DesignTokens.Copy.removalFailed)
-            }
-            if case let .item(id) = removal {
-                departingIDs.remove(id)
-            }
+            releasePendingRemovals(trackedIDs)
             removalsFinished &+= 1
+            if !succeeded {
+                removalStatus = .error(DesignTokens.Copy.removalFailed)
+                onRemovalFailed?()
+            }
         }
     }
 
-    /// Removes the deleted rows at once. The history's own refresh arrives a search later, and without
-    /// this a row the view stopped hiding would flash back until then.
+    /// Releases one in-flight reference per clip ID so overlapping removals stay guarded until all finish.
+    private func releasePendingRemovals(_ ids: Set<UUID>) {
+        for id in ids {
+            guard let count = pendingRemovalCounts[id] else { continue }
+            if count <= 1 {
+                pendingRemovalCounts.removeValue(forKey: id)
+            } else {
+                pendingRemovalCounts[id] = count - 1
+            }
+        }
+    }
+
+    /// Drops removed rows synchronously so deletion updates the list and selection in the same turn.
     private func dropRows(for removal: ClipboardManager.HistoryRemoval) {
         let previousCount = rows.count
         switch removal {

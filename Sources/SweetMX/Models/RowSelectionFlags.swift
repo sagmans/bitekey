@@ -24,6 +24,9 @@ final class RowSelectionFlag {
 final class RowSelectionFlags {
     private var flags: [Int: RowSelectionFlag] = [:]
     private var selected: Int?
+    /// Whether the most recent selection change came from interactive navigation (glide the capsule)
+    /// or from replacing or removing rows (snap the capsule into place without springing).
+    private(set) var shouldAnimate = false
 
     /// The flag for a position, created on first use with the current selection, so a row materialized
     /// after the selection moved still starts in the right state.
@@ -38,7 +41,10 @@ final class RowSelectionFlags {
     }
 
     /// Moves the selection by touching only the position that loses it and the one that gains it.
-    func select(_ index: Int?) {
+    /// Records `shouldAnimate` even when the index is unchanged, because deleting a selected row shifts
+    /// its successor into the same index and must snap instead of gliding.
+    func select(_ index: Int?, animated: Bool = false) {
+        shouldAnimate = animated
         guard index != selected else { return }
         if let selected {
             flags[selected]?.isSelected = false

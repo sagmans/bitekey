@@ -23,6 +23,20 @@ struct ClipPreviewPane: View {
         return model.clips.rows[index]
     }
 
+    /// Cross-fades only during interactive browsing; deletions and refreshes replace the preview at once
+    /// so a removed clip never lingers over its successor.
+    private var previewAnimation: Animation? {
+        model.rowSelection.shouldAnimate
+            ? DesignTokens.motion(DesignTokens.Motion.previewChange, reduceMotion: reduceMotion)
+            : nil
+    }
+
+    /// Duration for the AppKit preview text cross-fade, or nil to swap instantaneously alongside `previewAnimation`.
+    private var previewFadeDuration: Double? {
+        guard model.rowSelection.shouldAnimate else { return nil }
+        return reduceMotion ? DesignTokens.Motion.reducedFade : DesignTokens.Motion.previewFade
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Metrics.previewSpacing) {
             if let row = selectedRow, let item = model.clips.item(id: row.id) {
@@ -41,7 +55,7 @@ struct ClipPreviewPane: View {
                 content(row: row, item: item, image: image)
             }
         }
-        .animation(DesignTokens.motion(DesignTokens.Motion.previewChange, reduceMotion: reduceMotion), value: selectedRow?.id)
+        .animation(previewAnimation, value: selectedRow?.id)
         .padding(DesignTokens.Metrics.previewPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onReceive(NotificationCenter.default.publisher(for: ClipboardImageCache.didLoad)) { _ in
@@ -108,8 +122,8 @@ struct ClipPreviewPane: View {
                 isMonospaced: row.kind == .code,
                 tint: DesignTokens.Palette.matchText,
                 // The text view is AppKit and outside SwiftUI transitions, so it fades on its own clock,
-                // matched to the header's.
-                fadeDuration: reduceMotion ? DesignTokens.Motion.reducedFade : DesignTokens.Motion.previewFade
+                // matched to the header's, and swaps immediately when selection animation is suppressed.
+                fadeDuration: previewFadeDuration
             )
         }
     }

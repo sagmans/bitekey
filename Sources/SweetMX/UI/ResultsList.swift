@@ -8,12 +8,8 @@ struct ResultsList: View {
     @Bindable var model: LauncherModel
 
     @Namespace private var selectionSpace
-    /// Captions per row index for the result set named by `headersKey`. Derived once per result set, not
-    /// per row on each redraw, because a held arrow key redraws the list on every repeat.
-    @State private var headers: [String?] = []
-    /// The result set `headers` was built for; captions are used only while it matches the shown rows,
-    /// so a stale array can never put a caption over the wrong row.
-    @State private var headersKey: SectionKey?
+    /// Captions per row index, derived synchronously once per result set; see `SectionHeadersMemo`.
+    @State private var sectionHeaders = SectionHeadersMemo()
     /// Row positions, paired once per published result set; see `IndexedRowsMemo`.
     @State private var appRows = IndexedRowsMemo<AppRowData>()
     @State private var clipRows = IndexedRowsMemo<ClipRowData>()
@@ -88,7 +84,12 @@ struct ResultsList: View {
 
     private var list: some View {
         // Read once per pass; rows below only index into it.
-        let shownHeaders = headersKey == sectionKey ? headers : []
+        let shownHeaders = sectionHeaders.headers(
+            for: sectionKey,
+            apps: model.apps.rows,
+            clips: model.clips.rows,
+            calendar: calendar
+        )
         let style = selectionStyle
         return ScrollViewReader { proxy in
             ScrollView {
@@ -109,7 +110,6 @@ struct ResultsList: View {
                             .accessibilityHint(Self.rowHint(for: .applications))
                         }
                     case .clipboard:
-                        let departing = model.clips.departingIDs
                         ForEach(clipRows.rows(model.clips.rows, generation: model.clips.rowsGeneration)) { indexed in
                             let index = indexed.index, row = indexed.row
                             if let title = header(at: index, in: shownHeaders) {
@@ -118,10 +118,6 @@ struct ResultsList: View {
                             container(index: index, id: row.id, style: style) { isSelected in
                                 ThumbnailClipRow(data: row, isSelected: isSelected, clips: model.clips, reference: referenceDate).equatable()
                             }
-                            .opacity(departing.contains(row.id) ? 0 : 1)
-                            .frame(height: departing.contains(row.id) ? 0 : nil, alignment: .top)
-                            .clipped()
-                            .animation(rowCollapseAnimation, value: departing.contains(row.id))
                             .transition(arrival(at: index))
                             .accessibilityIdentifier(DesignTokens.Identifier.clipboardRow(index))
                             // The relative time is on screen under the clip text, so VoiceOver reads it too.
@@ -147,15 +143,7 @@ struct ResultsList: View {
                     scroll(to: selected, with: proxy)
                 }
             }
-            .onChange(of: sectionKey, initial: true) { _, key in
-                rebuildHeaders(for: key)
-            }
         }
-    }
-
-    /// Both deletion entry points collapse a row while storage finishes, with the usual Reduce Motion policy.
-    private var rowCollapseAnimation: Animation? {
-        DesignTokens.motion(.easeInOut(duration: DesignTokens.Motion.rowCollapse), reduceMotion: reduceMotion)
     }
 
     /// Keeps the selected row visible while the keyboard moves it; pointer selection lands on a visible row,
@@ -164,7 +152,7 @@ struct ResultsList: View {
         guard let selected, let id = rowID(at: selected) else { return }
         // The first row's header sits above it; scrolling to the row alone would leave the header
         // clipped when the user returns to the top.
-        if selected == 0, header(at: 0, in: headers) != nil {
+        if selected == 0, header(at: 0, in: sectionHeaders.current) != nil {
             proxy.scrollTo(Self.listTopID, anchor: .top)
             return
         }
@@ -182,38 +170,19 @@ struct ResultsList: View {
         }
     }
 
-    /// Names one result set: the mode picks the model and the generation its rows.
-    private struct SectionKey: Equatable {
-        let mode: SearchMode
-        let generation: Int
-    }
-
-    private var sectionKey: SectionKey {
-        SectionKey(mode: model.mode, generation: rowsGeneration)
+    private var sectionKey: SectionHeadersMemo.Key {
+        SectionHeadersMemo.Key(
+            mode: model.mode,
+            generation: rowsGeneration,
+            showsSections: showsSections,
+            referenceDate: referenceDate,
+            timeZone: timeZone,
+            calendarIdentifier: calendar.identifier
+        )
     }
 
     private func header(at index: Int, in titles: [String?]) -> String? {
         titles.indices.contains(index) ? titles[index] : nil
-    }
-
-    /// One pass over the rows per result set, with one calendar and one "now", so every caption in the
-    /// set agrees on what today is. Buckets count calendar days while a row's relative time counts elapsed
-    /// time, so "13 hr. ago" can sit under "Yesterday"; both are true, and the panel is short-lived, so
-    /// neither is re-rendered as the clock moves.
-    private func rebuildHeaders(for key: SectionKey) {
-        headersKey = key
-        guard showsSections else {
-            headers = []
-            return
-        }
-        switch key.mode {
-        case .applications:
-            headers = ListSections.appHeaders(for: model.apps.rows)
-        case .clipboard:
-            var zoned = calendar
-            zoned.timeZone = timeZone
-            headers = ListSections.clipHeaders(for: model.clips.rows, now: referenceDate ?? Date(), calendar: zoned)
-        }
     }
 
     /// Scroll target of the padded list as a whole, so returning to the first row shows its header and the
@@ -238,6 +207,7 @@ struct ResultsList: View {
     private func container(index: Int, id: some Hashable, style: SelectionStyle, @ViewBuilder content: @escaping (Bool) -> some View) -> some View {
         SelectableRow(
             flag: model.rowSelection.flag(at: index),
+            selectionFlags: model.rowSelection,
             style: style,
             namespace: selectionSpace,
             onSelect: { model.select(index) },

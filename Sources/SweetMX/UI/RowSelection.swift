@@ -29,6 +29,58 @@ final class IndexedRowsMemo<Row: Identifiable> {
     }
 }
 
+/// Caches section captions per published result set without triggering extra SwiftUI update passes.
+///
+/// Computed synchronously during `body` instead of in `.onChange`, because deferring the rebuild left
+/// captions blank for one frame whenever `rowsGeneration` bumped, causing the list to jump up and back down.
+final class SectionHeadersMemo {
+    /// Captures every input that can change a result set's captions.
+    struct Key: Equatable {
+        let mode: SearchMode
+        let generation: Int
+        let showsSections: Bool
+        let referenceDate: Date?
+        let timeZone: TimeZone
+        let calendarIdentifier: Calendar.Identifier
+    }
+
+    private var key: Key?
+    private var cached: [String?] = []
+
+    /// Most recently computed captions, for scroll helpers running outside `body`.
+    var current: [String?] {
+        cached
+    }
+
+    /// One pass over the rows per result set, with one calendar and one "now", so every caption in the
+    /// set agrees on what today is. Buckets count calendar days while a row's relative time counts elapsed
+    /// time, so "13 hr. ago" can sit under "Yesterday"; both are true, and the panel is short-lived, so
+    /// neither is re-rendered as the clock moves.
+    func headers(
+        for key: Key,
+        apps: [AppRowData],
+        clips: [ClipRowData],
+        calendar: Calendar
+    ) -> [String?] {
+        if key != self.key {
+            if !key.showsSections {
+                cached = []
+            } else {
+                switch key.mode {
+                case .applications:
+                    cached = ListSections.appHeaders(for: apps)
+                case .clipboard:
+                    var zoned = calendar
+                    zoned.timeZone = key.timeZone
+                    cached = ListSections.clipHeaders(for: clips, now: key.referenceDate ?? Date(), calendar: zoned)
+                }
+            }
+            self.key = key
+        }
+        return cached
+    }
+}
+
 /// Scrolls the list when `LauncherModel.selection` moves.
 ///
 /// A separate view because a view that reads the selection is re-evaluated on every change of it; with
@@ -54,6 +106,7 @@ struct SelectionFollower: View {
 /// row that gains it, and `matchedGeometryEffect` still glides the capsule between them.
 struct SelectableRow<Content: View>: View {
     let flag: RowSelectionFlag
+    let selectionFlags: RowSelectionFlags
     let style: SelectionStyle
     let namespace: Namespace.ID
     let onSelect: () -> Void
@@ -63,15 +116,20 @@ struct SelectableRow<Content: View>: View {
 
     var body: some View {
         let isSelected = flag.isSelected
+        let capsuleAnimation = selectionFlags.shouldAnimate ? style.animation : nil
         content(isSelected)
             .background {
-                if isSelected {
-                    Color.clear
-                        .launcherGlass(.regular.tint(style.tint.opacity(style.opacity)).interactive(), in: .capsule, snapshotFill: DesignTokens.Palette.snapshotSelection)
-                        .matchedGeometryEffect(id: DesignTokens.Glass.selectionID, in: namespace)
+                // Scope selection animation strictly to the capsule so text labels (such as relative timestamps)
+                // never cross-fade over themselves, and skip motion on list deletions so the highlight snaps.
+                ZStack {
+                    if isSelected {
+                        Color.clear
+                            .launcherGlass(.regular.tint(style.tint.opacity(style.opacity)).interactive(), in: .capsule, snapshotFill: DesignTokens.Palette.snapshotSelection)
+                            .matchedGeometryEffect(id: DesignTokens.Glass.selectionID, in: namespace)
+                    }
                 }
+                .animation(capsuleAnimation, value: isSelected)
             }
-            .animation(style.animation, value: isSelected)
             .contentShape(Rectangle())
             // With a double-tap gesture present, the single tap waits for the double tap to fail, so selection
             // lands after the system double-click interval; registering the double tap first keeps both working.

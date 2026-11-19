@@ -8,9 +8,6 @@ struct ResultsList: View {
     @Bindable var model: LauncherModel
 
     @Namespace private var selectionSpace
-    /// Clips whose delete was requested. The history confirms asynchronously, so the row collapses at
-    /// once instead of waiting for the data to change.
-    @State private var departing: Set<UUID> = []
     /// Captions per row index for the result set named by `headersKey`. Derived once per result set, not
     /// per row on each redraw, because a held arrow key redraws the list on every repeat.
     @State private var headers: [String?] = []
@@ -112,6 +109,7 @@ struct ResultsList: View {
                             .accessibilityHint(Self.rowHint(for: .applications))
                         }
                     case .clipboard:
+                        let departing = model.clips.departingIDs
                         ForEach(clipRows.rows(model.clips.rows, generation: model.clips.rowsGeneration)) { indexed in
                             let index = indexed.index, row = indexed.row
                             if let title = header(at: index, in: shownHeaders) {
@@ -123,6 +121,7 @@ struct ResultsList: View {
                             .opacity(departing.contains(row.id) ? 0 : 1)
                             .frame(height: departing.contains(row.id) ? 0 : nil, alignment: .top)
                             .clipped()
+                            .animation(rowCollapseAnimation, value: departing.contains(row.id))
                             .transition(arrival(at: index))
                             .accessibilityIdentifier(DesignTokens.Identifier.clipboardRow(index))
                             // The relative time is on screen under the clip text, so VoiceOver reads it too.
@@ -148,15 +147,15 @@ struct ResultsList: View {
                     scroll(to: selected, with: proxy)
                 }
             }
-            // A finished delete either removed the row already or failed and must show it again; either
-            // way nothing stays hidden, even when the failure repeats an earlier message.
-            .onChange(of: model.clips.removalsFinished) { _, _ in
-                withAnimation(selectionAnimation) { departing.removeAll() }
-            }
             .onChange(of: sectionKey, initial: true) { _, key in
                 rebuildHeaders(for: key)
             }
         }
+    }
+
+    /// Both deletion entry points collapse a row while storage finishes, with the usual Reduce Motion policy.
+    private var rowCollapseAnimation: Animation? {
+        DesignTokens.motion(.easeInOut(duration: DesignTokens.Motion.rowCollapse), reduceMotion: reduceMotion)
     }
 
     /// Keeps the selected row visible while the keyboard moves it; pointer selection lands on a visible row,
@@ -276,14 +275,11 @@ struct ResultsList: View {
     @ViewBuilder
     private func menu(for id: UUID) -> some View {
         Button(DesignTokens.Copy.copyClip) { model.copyClip(id: id) }
-        Button(DesignTokens.Copy.deleteClip) {
-            withAnimation(DesignTokens.motion(.easeInOut(duration: DesignTokens.Motion.rowCollapse), reduceMotion: reduceMotion)) {
-                _ = departing.insert(id)
-            }
-            model.deleteClip(id: id)
+        Button(DesignTokens.Copy.deleteClipMenu) {
+            ClipboardRemovalPrompt.present(.item(id), for: model, over: ClipboardRemovalPrompt.launcherWindow)
         }
         Button(DesignTokens.Copy.clearHistoryMenu) {
-            ClearHistoryPrompt.present(for: model, over: ClearHistoryPrompt.launcherWindow)
+            ClipboardRemovalPrompt.present(.all, for: model, over: ClipboardRemovalPrompt.launcherWindow)
         }
     }
 }

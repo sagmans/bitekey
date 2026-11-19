@@ -7,6 +7,7 @@ enum LauncherKey: Equatable {
     case down
     case activate
     case copy
+    case deleteClip(isRepeat: Bool)
     case escape
 }
 
@@ -17,6 +18,7 @@ enum LauncherKeyCode {
     static let upArrow: UInt16 = 126
     static let downArrow: UInt16 = 125
     static let returnKey: UInt16 = 36
+    static let backspace: UInt16 = 51
 }
 
 /// A standard editing chord and the responder action it stands for.
@@ -98,10 +100,8 @@ final class LauncherPanel: NSPanel {
         isReleasedWhenClosed = false
     }
 
-    /// Maps an event to a reserved key, or nil when the panel should leave it alone. Only the plain keys
-    /// and the copy chord are reserved: Shift, Command or Control combinations belong to the search
-    /// field, and a stray modifier must never turn a copy into a paste. Function and numeric-pad flags
-    /// are ignored because arrow events always carry them.
+    /// Matches the exact modifiers so editing chords stay with the focused field and a stray modifier
+    /// cannot turn a copy into a paste. Arrow events also carry non-modifier flags that we ignore here.
     static func launcherKey(for event: NSEvent) -> LauncherKey? {
         guard event.type == .keyDown else { return nil }
         let held = event.modifierFlags.intersection(CopyClipShortcut.relevantModifiers)
@@ -109,6 +109,7 @@ final class LauncherPanel: NSPanel {
         case LauncherKeyCode.escape: return .escape
         case LauncherKeyCode.upArrow: return held.isEmpty ? .up : nil
         case LauncherKeyCode.downArrow: return held.isEmpty ? .down : nil
+        case LauncherKeyCode.backspace: return held == .command ? .deleteClip(isRepeat: event.isARepeat) : nil
         case LauncherKeyCode.returnKey:
             if held.isEmpty {
                 return .activate
@@ -122,12 +123,16 @@ final class LauncherPanel: NSPanel {
 
     /// Whether a reserved key belongs to the launcher given where the keyboard focus is. A text view that
     /// is not the search field's editor, such as the selectable preview, needs arrows and Return for
-    /// its own text navigation, so they pass through to it. Esc closes the launcher from anywhere.
+    /// its own text navigation, so they pass through to it. A read-only preview can still ask to delete
+    /// the selected clip, and Esc closes the launcher from anywhere.
     static func routes(_ key: LauncherKey, firstResponder: NSResponder?) -> Bool {
         if key == .escape {
             return true
         }
         guard let textView = firstResponder as? NSTextView else { return true }
+        if case .deleteClip = key, !textView.isEditable {
+            return true
+        }
         return textView.isFieldEditor
     }
 

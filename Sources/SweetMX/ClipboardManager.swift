@@ -372,8 +372,8 @@ final nonisolated class ClipboardManager: @unchecked Sendable {
                 }
                 // Copies arriving during the write have different identities and must survive it.
                 historyQueue.sync { history.removeAll { removedIDs.contains($0.id) } }
-                postHistoryUpdated()
-                DispatchQueue.main.async { MainActor.assumeIsolated { completion(true) } }
+                // Apply the local removal and selection before observers can publish a refreshed search.
+                postHistoryUpdated { completion(true) }
             } catch {
                 logStorageFailure(error, operation: "remove")
                 DispatchQueue.main.async { MainActor.assumeIsolated { completion(false) } }
@@ -567,9 +567,10 @@ final nonisolated class ClipboardManager: @unchecked Sendable {
         }
     }
 
-    private func postHistoryUpdated() {
+    private func postHistoryUpdated(beforeNotification: (@MainActor @Sendable () -> Void)? = nil) {
         searchIndex.historyDidChange { [weak self] in self?.getHistory() ?? [] }
         DispatchQueue.main.async {
+            beforeNotification?()
             NotificationCenter.default.post(name: Self.historyDidUpdate, object: nil)
         }
     }

@@ -27,7 +27,7 @@ final class LauncherController: NSObject, NSWindowDelegate {
     /// the decoded images of removed clips. Only user removals count: clips that expire or fall out at the
     /// history limit leave the cache by its own count limit, and a failed removal only costs a re-decode.
     private var removalsReleased = 0
-    /// Watches the clear-history sheet, which takes key status from the panel while it is up.
+    /// Watches confirmation sheets, which take key status from the panel while open.
     private var sheetObserver: NSObjectProtocol?
 
     /// Whether a launcher session is open, for the hotkey toggle. The model is the only source: it turns
@@ -72,6 +72,7 @@ final class LauncherController: NSObject, NSWindowDelegate {
             return
         }
         if let mode, mode != model.mode {
+            cancelConfirmation()
             model.switchMode(to: mode)
             resizeAfterModeSwitch()
         } else {
@@ -82,6 +83,7 @@ final class LauncherController: NSObject, NSWindowDelegate {
     /// Opens the panel. The model goes first because it records the paste target, which is whichever
     /// app has focus before the panel takes the keyboard.
     func show(mode: SearchMode?) {
+        cancelConfirmation()
         // A reopen during the close motion must not be undone by the pending order-out.
         closeTask?.cancel()
         closeTask = nil
@@ -102,9 +104,7 @@ final class LauncherController: NSObject, NSWindowDelegate {
 
     /// Closes the panel and ends the session. A sheet is dismissed first, or it would be orphaned.
     func hide() {
-        if let sheet = panel.attachedSheet {
-            panel.endSheet(sheet, returnCode: .cancel)
-        }
+        cancelConfirmation()
         cancelPendingResize()
         model.hide()
         guard panel.isVisible, closeTask == nil else { return }
@@ -125,6 +125,13 @@ final class LauncherController: NSObject, NSWindowDelegate {
             let removals = model.clips.removalsFinished
             imageCache.releaseHidden(clipsWereRemoved: removals != removalsReleased)
             removalsReleased = removals
+        }
+    }
+
+    /// A confirmation belongs to one session, so it cannot survive a reopen, hide or mode switch.
+    private func cancelConfirmation() {
+        if let sheet = panel.attachedSheet {
+            panel.endSheet(sheet, returnCode: .cancel)
         }
     }
 
@@ -162,7 +169,7 @@ final class LauncherController: NSObject, NSWindowDelegate {
         hide()
     }
 
-    /// Closes the launcher when the user leaves it while the clear-history sheet is up. Click-away is
+    /// Closes the launcher when the user leaves it while a confirmation sheet is up. Click-away is
     /// ignored for the panel while a sheet is attached, because the sheet takes key from the panel; but
     /// when the user then clicks another app only the sheet resigns, and the panel with its clip preview
     /// would stay on screen over that app.
@@ -189,8 +196,7 @@ final class LauncherController: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Runs a reserved key as a model intent. Copy reports whether there was something to copy, so
-    /// the panel can let the key through when there was not.
+    /// Lets clipboard-only keys reach text editing in app search, where they have no launcher action.
     private func handle(_ key: LauncherKey) -> Bool {
         // Inert once the session is over, which includes the close fade: no key may act on it. Swallowing
         // (true) also stops typed characters from reaching the field.
@@ -202,6 +208,11 @@ final class LauncherController: NSObject, NSWindowDelegate {
         case .down: model.moveSelection(by: 1)
         case .activate: model.activateSelection()
         case .copy: return model.copySelection()
+        case let .deleteClip(isRepeat):
+            guard model.mode == .clipboard else { return false }
+            if !isRepeat, let id = model.selectedClipID {
+                ClipboardRemovalPrompt.present(.item(id), for: model, over: panel)
+            }
         case .escape: model.escape()
         }
         return true

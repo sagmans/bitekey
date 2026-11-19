@@ -397,7 +397,7 @@ final class LauncherModel {
     /// clipboard mode is always so, because the shortcut is reserved there even with nothing highlighted.
     func copySelection() -> Bool {
         guard mode == .clipboard else { return false }
-        if let index = selection, let id = rowID(at: index) as? UUID {
+        if let id = selectedClipID {
             copyClip(id: id)
         }
         return true
@@ -410,16 +410,16 @@ final class LauncherModel {
         clips.replay(id: id, pasteAutomatically: false) { onDismiss() }
     }
 
-    /// Removes one clip by id, because the row index can shift under live capture before the call lands.
-    func deleteClip(id: UUID) {
-        guard mode == .clipboard else { return }
-        clips.remove(.item(id))
+    /// The selected clip's identity is stable across live history updates while a prompt is open.
+    var selectedClipID: UUID? {
+        guard mode == .clipboard else { return nil }
+        return selectedRowID as? UUID
     }
 
-    /// Wipes the whole history; the caller confirms first, since this cannot be undone.
-    func clearHistory() {
-        guard mode == .clipboard else { return }
-        clips.remove(.all)
+    /// A confirmation only applies while its clipboard session is still open.
+    func removeClips(_ removal: ClipboardManager.HistoryRemoval) {
+        guard isPresented, mode == .clipboard else { return }
+        clips.remove(removal)
     }
 
     /// Pauses or resumes capture so the user can copy secrets without them entering history.
@@ -487,6 +487,7 @@ final class LauncherModel {
     private func wireSubmodels() {
         apps.onPublish = { [weak self] previousCount in self?.resultsPublished(in: .applications, previousCount: previousCount) }
         clips.onPublish = { [weak self] previousCount in self?.resultsPublished(in: .clipboard, previousCount: previousCount) }
+        clips.onRowsRemoved = { [weak self] in self?.selectAfterClipboardRemoval() }
         apps.onLaunched = { [weak self] in self?.onDismiss() }
         apps.onRecentsChanged = { [weak self] in
             guard let self, isPresented, mode == .applications,
@@ -496,6 +497,15 @@ final class LauncherModel {
             // Nothing is published when no index exists yet, and the flag must not outlive this refresh.
             preservesSelectionOnPublish = false
         }
+    }
+
+    /// Keep a surviving selection by identity. For a deleted selection, prefer its successor and use
+    /// its predecessor at the end of the list, so the next keypress has a visible target.
+    private func selectAfterClipboardRemoval() {
+        guard mode == .clipboard, let selection else { return }
+        let survivingIndex = clips.rows.firstIndex { $0.id == selectedClipID }
+        let adjacentIndex = clips.rows.isEmpty ? nil : min(selection, clips.rows.count - 1)
+        setSelection(survivingIndex ?? adjacentIndex)
     }
 
     /// Picks the selection for freshly published rows. A refresh keeps the user's row when it is still

@@ -33,8 +33,8 @@ extension DesignTokens.Copy {
     static let imageUnavailable = "Image unavailable"
     /// Hint of an application row: what Return does there.
     static let applicationRowHint = "Press Enter to launch this application"
-    /// Hint of a clip row: Return pastes the clip and Option-Return copies it.
-    static let clipRowHint = "Press Enter to paste this item, Option-Enter to copy it to the clipboard"
+    /// Announces keyboard actions for a clip, including the action available through its context menu.
+    static let clipRowHint = "Press Enter to paste, Option-Enter to copy, or Command-Delete to delete this clip"
     /// Name of the results list as a whole, so VoiceOver announces what the rows belong to.
     static let resultsLabel = "Search Results"
     /// Name of the launcher panel.
@@ -128,8 +128,8 @@ extension DesignTokens {
 
     /// Key bindings that are behavior, not user copy, so changing wording can never change a key.
     enum Keys {
-        /// Key that chooses Cancel in the clear-history sheet: Return, so a repeated press can never erase history.
-        static let cancelKeyEquivalent = "\r"
+        /// Removal sheets keep Escape available even when Cancel is also the default button.
+        static let cancelKeyEquivalent = "\u{1B}"
     }
 
     /// Date format of the copy time in the preview header: day and time, no year, because clips are recent.

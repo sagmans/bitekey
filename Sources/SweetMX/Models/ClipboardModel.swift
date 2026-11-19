@@ -122,8 +122,9 @@ final class ClipboardModel {
     private(set) var rowsAreRanked = false
     /// Bumped whenever `rows` is replaced; see `AppSearchModel.rowsGeneration`.
     private(set) var rowsGeneration = 0
-    /// Bumped when a removal finishes, whatever the result, so a view that hid a row while waiting can
-    /// always restore or forget it instead of guessing from status or row changes.
+    /// Pending IDs let either delete entry point collapse the same row and restore it on write failure.
+    private(set) var departingIDs: Set<UUID> = []
+    /// Includes failed removals so hiding the panel releases any cached images touched by a removal.
     private(set) var removalsFinished = 0
 
     /// Mirrors the manager because the manager is not observable; refreshed whenever it can change.
@@ -137,6 +138,8 @@ final class ClipboardModel {
 
     /// Told the previous row count after rows are replaced, so the owner can fix its selection.
     @ObservationIgnored var onPublish: ((_ previousCount: Int) -> Void)?
+    /// Removal has a different selection rule from a new search or a background refresh.
+    @ObservationIgnored var onRowsRemoved: (() -> Void)?
 
     @ObservationIgnored private(set) var manager: ClipboardManager?
     /// Remembered so a manager supplied later starts at the right poll rate.
@@ -266,10 +269,10 @@ final class ClipboardModel {
     }
 
     /// Puts the clip on the pasteboard and, unless copy-only, pastes it into the app that had focus.
-    /// Returns false when the clip is gone, for example removed while the menu was open.
+    /// A clip the user confirmed for deletion must stay unavailable while the write is in progress.
     @discardableResult
     func replay(id: UUID, pasteAutomatically: Bool, dismiss: () -> Void) -> Bool {
-        guard let item = item(id: id) else { return false }
+        guard !departingIDs.contains(id), let item = item(id: id) else { return false }
         replayer.replay(item, pasteAutomatically: pasteAutomatically, dismiss: dismiss)
         return true
     }
@@ -278,13 +281,23 @@ final class ClipboardModel {
 
     /// Removal is confirmed by the store, so a failure is surfaced rather than assumed away.
     func remove(_ removal: ClipboardManager.HistoryRemoval) {
+        guard let manager else {
+            removalStatus = .error(DesignTokens.Copy.removalFailed)
+            return
+        }
+        if case let .item(id) = removal {
+            guard departingIDs.insert(id).inserted else { return }
+        }
         removalStatus = nil
-        manager?.removeHistory(removal) { [weak self] succeeded in
+        manager.removeHistory(removal) { [weak self] succeeded in
             guard let self else { return }
             if succeeded {
                 dropRows(for: removal)
             } else {
                 removalStatus = .error(DesignTokens.Copy.removalFailed)
+            }
+            if case let .item(id) = removal {
+                departingIDs.remove(id)
             }
             removalsFinished &+= 1
         }
@@ -304,7 +317,7 @@ final class ClipboardModel {
         }
         guard rows.count != previousCount else { return }
         rowsGeneration &+= 1
-        onPublish?(previousCount)
+        onRowsRemoved?()
     }
 
     /// A stale failure message would follow the user into the next session.

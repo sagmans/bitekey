@@ -40,9 +40,11 @@ Dev and release builds share the bundle ID, saved data, and hotkeys, so run
 one at a time. Because their signatures differ, macOS asks for the paste
 permission again when you switch between them.
 
-To update, run `make install` again. It stops any running copy first. The
-installer replaces the bundle and keeps saved clips, recent apps, and
-preferences. `make uninstall` moves the bundle to Trash and keeps that data.
+To update, run `make install` again. It checks that the install can go ahead,
+then stops any running copy, replaces the bundle, and opens SweetMX again. A
+refused install leaves the running copy alone. The installer keeps saved clips,
+recent apps, and preferences. `make uninstall` moves the bundle to Trash and
+keeps that data.
 
 `make bundle` and `make install` need full Xcode, not only the Command Line
 Tools: they compile the app icon with Xcode's asset compiler. If you change

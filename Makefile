@@ -18,6 +18,10 @@ LEGACY_BUNDLE_IDS := com.assagman.bitekey com.assagman.applebox
 BUILD_DIR := .build/release
 APP_BUNDLE := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR := $(HOME)/Applications
+INSTALLED_BUNDLE := $(INSTALL_DIR)/$(APP_NAME).app
+# Every installer action takes the same operands, so check and install can never
+# guard different bundles.
+INSTALLER_ARGS = "$(APP_BUNDLE)" "$(INSTALLED_BUNDLE)" "$(BUNDLE_ID)" $(LEGACY_BUNDLE_IDS)
 LOCAL_INSTALLER := scripts/install-local.swift
 # Owns every icon geometry and color constant, so all icon files come from one
 # reviewed script instead of hand edits in a design tool.
@@ -332,14 +336,18 @@ run: stop bundle
 # Stops every running copy, dev or release: they share the bundle ID and the global hotkeys,
 # so only one may run, and the installer refuses to replace a bundle while any copy runs.
 # Fails when a copy outlives the wait, so `install` never races a live process.
+# A shell fragment, not a sub-make, so `install` can run it mid-recipe without
+# referencing $(MAKE), which would make `make -n install` run the real install.
+STOP_APP = if pkill -x "$(APP_NAME)" 2>/dev/null; then \
+	for _ in $$(seq $(STOP_POLL_LIMIT)); do pgrep -x "$(APP_NAME)" >/dev/null || break; sleep $(STOP_POLL_SECONDS); done; \
+	if pgrep -x "$(APP_NAME)" >/dev/null; then \
+		echo "$(RED)$(APP_NAME) still running after $(STOP_POLL_LIMIT) checks; quit it from the menu bar$(NC)"; exit 1; \
+	fi; \
+	echo "$(YELLOW)Stopped $(APP_NAME)$(NC)"; \
+fi
+
 stop:
-	@if pkill -x "$(APP_NAME)" 2>/dev/null; then \
-		for _ in $$(seq $(STOP_POLL_LIMIT)); do pgrep -x "$(APP_NAME)" >/dev/null || break; sleep $(STOP_POLL_SECONDS); done; \
-		if pgrep -x "$(APP_NAME)" >/dev/null; then \
-			echo "$(RED)$(APP_NAME) still running after $(STOP_POLL_LIMIT) checks; quit it from the menu bar$(NC)"; exit 1; \
-		fi; \
-		echo "$(YELLOW)Stopped $(APP_NAME)$(NC)"; \
-	fi
+	@$(STOP_APP)
 
 status:
 	@pgrep -x $(APP_NAME) >/dev/null && echo "$(GREEN)$(APP_NAME) running (PID: $$(pgrep -x $(APP_NAME)))$(NC)" || echo "$(YELLOW)$(APP_NAME) not running$(NC)"
@@ -355,12 +363,31 @@ logs:
 local-signing:
 	@bash "$(LOCAL_SIGNING_SETUP)" "$(LOCAL_SIGNING_NAME)"
 
-# Bundle first, then stop, so the running copy keeps working during the build.
-install: bundle stop
-	@swift "$(LOCAL_INSTALLER)" install "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app" "$(BUNDLE_ID)" $(LEGACY_BUNDLE_IDS)
+# Bundle and check first, then stop, so the running copy keeps working during the
+# build and is never stopped for an install the guards would refuse.
+# `check` prints the bundle that ran. A failed install leaves the installed bundle
+# untouched (install-local.swift swaps it in with one atomic rename as its last
+# step), so the bundle that ran is opened again; a successful one opens the new copy.
+# A copy that was not running stays closed.
+install: bundle
+	@running_bundle="$$(swift "$(LOCAL_INSTALLER)" check $(INSTALLER_ARGS))" || exit 1; \
+	$(STOP_APP); \
+	if swift "$(LOCAL_INSTALLER)" install $(INSTALLER_ARGS); then \
+		if [ -n "$$running_bundle" ] && ! open "$(INSTALLED_BUNDLE)"; then \
+			echo "$(RED)Installed, but $(APP_NAME) did not open; open $(INSTALLED_BUNDLE)$(NC)"; exit 1; \
+		fi; \
+	else \
+		status=$$?; \
+		if [ -n "$$running_bundle" ] && [ -d "$$running_bundle" ] && open "$$running_bundle"; then \
+			echo "$(YELLOW)Install failed; reopened $$running_bundle$(NC)"; \
+		elif [ -n "$$running_bundle" ]; then \
+			echo "$(RED)Install failed and $(APP_NAME) was not reopened; open $$running_bundle$(NC)"; \
+		fi; \
+		exit $$status; \
+	fi
 
 uninstall:
-	@swift "$(LOCAL_INSTALLER)" uninstall "$(APP_BUNDLE)" "$(INSTALL_DIR)/$(APP_NAME).app" "$(BUNDLE_ID)" $(LEGACY_BUNDLE_IDS)
+	@swift "$(LOCAL_INSTALLER)" uninstall $(INSTALLER_ARGS)
 
 # ==============================================================================
 # Code Signing & Notarization

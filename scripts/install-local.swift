@@ -4,6 +4,11 @@ import Darwin
 /// Keep local installs separate from release packaging and the user's saved history.
 private enum LocalInstall {
     private enum Action: String {
+        /// Runs every install guard and changes nothing. `make install` calls it before it
+        /// stops the running copy, so a refusal never leaves the user without SweetMX.
+        /// Prints the running copy's bundle path, which `make install` reopens if the
+        /// install fails after the stop.
+        case check
         case install, uninstall
     }
 
@@ -15,7 +20,7 @@ private enum LocalInstall {
 
         var errorDescription: String? {
             switch self {
-            case .invalidArguments: "Expected install or uninstall, source bundle, destination bundle, bundle identifier, and one or more legacy bundle identifiers."
+            case .invalidArguments: "Expected check, install or uninstall, source bundle, destination bundle, bundle identifier, and one or more legacy bundle identifiers."
             case let .unexpectedBundle(url): "Refusing to replace or remove an unexpected item at \(url.path)."
             case .running: "Quit SweetMX from its menu before installing, updating, or uninstalling."
             case let .legacyRunning(name): "Quit \(name) and turn off its login item before you install SweetMX."
@@ -43,34 +48,56 @@ private enum LocalInstall {
         guard legacyIdentifiers.allSatisfy({ !$0.isEmpty && $0 != identifier }) else {
             throw Failure.invalidArguments
         }
-        guard NSRunningApplication.runningApplications(withBundleIdentifier: identifier).isEmpty else {
-            throw Failure.running
-        }
-
-        let installed = try validateInstalledBundle(at: destination, identifier: identifier)
         switch action {
+        case .check:
+            // The current copy may still run here: `make install` stops it only after this
+            // check passes, and the install action checks again once it has stopped.
+            try validateInstallPreconditions(source: source, destination: destination, identifier: identifier, legacyIdentifiers: legacyIdentifiers)
+            // The bundle URL comes from Launch Services, so no process path is parsed.
+            if let running = NSRunningApplication.runningApplications(withBundleIdentifier: identifier).first?.bundleURL {
+                print(running.path)
+            }
         case .install:
-            // Only install is guarded: the old app would register the same global shortcuts,
-            // and it could write data after the first SweetMX launch copies it. Uninstall
-            // touches neither, so it must work while the old app runs.
-            // Every former name counts: any of them would clash in the same way.
-            for legacyIdentifier in legacyIdentifiers {
-                if let running = NSRunningApplication.runningApplications(withBundleIdentifier: legacyIdentifier).first {
-                    // The app name is what the user sees in the menu bar; the ID is the fallback.
-                    throw Failure.legacyRunning(running.localizedName ?? legacyIdentifier)
-                }
-            }
-            guard try validateInstalledBundle(at: source, identifier: identifier) else {
-                throw Failure.unexpectedBundle(source)
-            }
+            try requireNotRunning(identifier)
+            let installed = try validateInstallPreconditions(source: source, destination: destination, identifier: identifier, legacyIdentifiers: legacyIdentifiers)
             try install(source, to: destination, replacing: installed)
             print("Installed \(destination.path)")
         case .uninstall:
-            if installed {
+            // Uninstall skips the legacy-app guard: it neither registers shortcuts nor
+            // copies data, so it must work while the old app runs.
+            try requireNotRunning(identifier)
+            if try validateInstalledBundle(at: destination, identifier: identifier) {
                 try fileManager.trashItem(at: destination, resultingItemURL: nil)
                 print("Moved \(destination.path) to Trash. Saved history and preferences are kept.")
             }
         }
+    }
+
+    /// Replacing or trashing the bundle under a live process would leave it running stale code.
+    private static func requireNotRunning(_ identifier: String) throws {
+        guard NSRunningApplication.runningApplications(withBundleIdentifier: identifier).isEmpty else {
+            throw Failure.running
+        }
+    }
+
+    /// Shared by `check` and `install`, so the preflight can never drift from the real guard.
+    /// Returns whether a SweetMX bundle already sits at the destination; install needs it
+    /// to swap rather than create, and check has no use for it.
+    @discardableResult
+    private static func validateInstallPreconditions(source: URL, destination: URL, identifier: String, legacyIdentifiers: [String]) throws -> Bool {
+        let installed = try validateInstalledBundle(at: destination, identifier: identifier)
+        // An old app would register the same global shortcuts, and it could write data
+        // after the first SweetMX launch copies it. Every former name clashes the same way.
+        for legacyIdentifier in legacyIdentifiers {
+            if let running = NSRunningApplication.runningApplications(withBundleIdentifier: legacyIdentifier).first {
+                // The app name is what the user sees in the menu bar; the ID is the fallback.
+                throw Failure.legacyRunning(running.localizedName ?? legacyIdentifier)
+            }
+        }
+        guard try validateInstalledBundle(at: source, identifier: identifier) else {
+            throw Failure.unexpectedBundle(source)
+        }
+        return installed
     }
 
     private static func validateInstalledBundle(at url: URL, identifier: String) throws -> Bool {

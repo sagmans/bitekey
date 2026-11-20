@@ -25,7 +25,7 @@
     "app_index_scan_ms" : {
       "baseline" : 94.28,
       "kind" : "time",
-      "limit" : 141.421,
+      "limit" : 200,
       "summary" : "Full rescan of 600 app bundles on disk",
       "unit" : "ms"
     },

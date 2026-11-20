@@ -225,6 +225,13 @@ final nonisolated class ApplicationIndexer: @unchecked Sendable {
         }
     }
 
+    /// A cache reader can wait for writes from completed scans without adding disk I/O to scan latency.
+    func waitForPendingPersistence(until deadline: DispatchTime) -> DispatchTimeoutResult {
+        let drained = DispatchWorkItem {}
+        persistenceQueue.async(execute: drained)
+        return drained.wait(timeout: deadline)
+    }
+
     private func persistApplicationsAsync(_ applications: [ApplicationInfo]) {
         let entries = applications.map { CachedApplication(name: $0.name, bundlePath: $0.bundlePath) }
         let snapshot = ApplicationIndexCache(version: cacheVersion, entries: entries)

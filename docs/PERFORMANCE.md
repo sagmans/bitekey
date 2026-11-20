@@ -55,6 +55,10 @@ metric. The limit leaves room for normal noise:
 | Size   | 1.10 × baseline, at least + 16 KiB                 | Sizes change only with code or toolchain           |
 | Rate   | Fixed design ceiling: 2.2 polls/s, 1 ms/s idle CPU | Budgets set by design: 2 polls/s, 0.1% of one core |
 
+The full app-index scan has a fixed 200 ms budget. Recording it updates the
+measured baseline and keeps that limit. The retained-index probe waits for the
+scan's queued cache writes to finish before sampling the heap.
+
 The baseline file also records the Mac it was made on. Time limits hold only
 on similar hardware. If the gate fails on another Mac, compare the hosts first.
 

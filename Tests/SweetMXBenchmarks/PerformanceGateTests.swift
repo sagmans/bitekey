@@ -23,6 +23,13 @@ final class PerformanceGateTests: XCTestCase {
         static let on = "1"
     }
 
+    private enum BenchmarkError: Error {
+        case indexPersistenceTimedOut
+    }
+
+    /// A stalled cache write must fail the benchmark before it samples or records process-wide heap.
+    private static let persistenceTimeout: DispatchTimeInterval = .seconds(10)
+
     /// Typed as the launcher receives them: one search per keystroke, ending with one query that
     /// matches nothing, which is the most expensive search because every candidate is checked in full.
     private static let appQueries = ["visual studio code", "term", "spotify music", "zzqx"]
@@ -109,9 +116,13 @@ final class PerformanceGateTests: XCTestCase {
     private func measureApplicationIndex() throws {
         let indexer = ApplicationIndexer(fileSystem: sandbox, scanSynchronously: true)
         XCTAssertEqual(indexer.allApplications.count, BenchmarkFixtures.applicationCount, "Fixture apps must all be indexed")
-        add("app_index_scan_ms", .time, "ms", Probe.medianMilliseconds(warmup: 1, samples: 7) { indexer.scanForApplications() },
+        add(PerformanceGate.appIndexScan.name, .time, "ms", Probe.medianMilliseconds(warmup: 1, samples: 7) { indexer.scanForApplications() },
             "Full rescan of \(BenchmarkFixtures.applicationCount) app bundles on disk")
 
+        // Cache encoding from the timed scans also allocates on the process heap.
+        guard indexer.waitForPendingPersistence(until: .now() + Self.persistenceTimeout) == .success else {
+            throw BenchmarkError.indexPersistenceTimedOut
+        }
         let retained = Probe.retainedKibibytes { ApplicationIndexer(fileSystem: sandbox, scanSynchronously: false) }
         XCTAssertEqual(retained.value.allApplications.count, BenchmarkFixtures.applicationCount, "Index cache must load at launch")
         add("app_index_retained_kib", .memory, "KiB", retained.kibibytes, "Heap held by the index loaded from its cache")

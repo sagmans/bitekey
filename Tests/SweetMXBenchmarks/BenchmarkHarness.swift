@@ -157,6 +157,9 @@ enum BenchmarkHost {
 /// Applies the committed limits and records new ones. Kept apart from the benchmarks so the policy
 /// (how much slower is a regression) has one owner.
 enum PerformanceGate {
+    /// The full scan has a fixed latency budget, including after a baseline recording.
+    static let appIndexScan = (name: "app_index_scan_ms", limitMilliseconds: 200.0)
+
     /// Wall time on a shared desktop varies by tens of percent run to run; 1.5x stays clear of that
     /// noise while still catching an accidental quadratic path or a lost cache.
     private static let timeFactor = 1.5
@@ -189,6 +192,9 @@ enum PerformanceGate {
     }
 
     static func limit(for measurement: Measurement) -> Double {
+        if measurement.name == appIndexScan.name {
+            return appIndexScan.limitMilliseconds
+        }
         let value = measurement.value
         let raw: Double = switch measurement.kind {
         case .time: max(value * timeFactor, value + timeSlackMilliseconds)

@@ -12,20 +12,20 @@ if ! request=$(jq -ce '
     | map(.state.revision | select(type == "string" and test("^[0-9a-f]{40}$")))
     | {queries: map({commit: .})}
 ' "$LOCKFILE") || ! pin_count=$(jq -er '.pins | length' "$LOCKFILE"); then
-    printf 'Cannot read Swift dependency pins from %s\n' "$LOCKFILE" >&2
-    exit 1
+	printf 'Cannot read Swift dependency pins from %s\n' "$LOCKFILE" >&2
+	exit 1
 fi
 
 if ! jq -e --argjson count "$pin_count" '.queries | length == $count' <<<"$request" >/dev/null; then
-    printf 'Every dependency in %s needs a pinned Git revision\n' "$LOCKFILE" >&2
-    exit 1
+	printf 'Every dependency in %s needs a pinned Git revision\n' "$LOCKFILE" >&2
+	exit 1
 fi
 
 # A partial or malformed response cannot clear a dependency for push.
 if ! response=$(curl --disable --silent --show-error --fail --proto '=https' \
-    --connect-timeout "$CONNECT_SECONDS" --max-time "$REQUEST_SECONDS" \
-    --header 'Content-Type: application/json' --data-binary "$request" "$ADVISORY_URL") ||
-    ! findings=$(jq -er --argjson count "$pin_count" '
+	--connect-timeout "$CONNECT_SECONDS" --max-time "$REQUEST_SECONDS" \
+	--header 'Content-Type: application/json' --data-binary "$request" "$ADVISORY_URL") ||
+	! findings=$(jq -er --argjson count "$pin_count" '
         .results | select(type == "array" and length == $count)
         | select(all(.[]; type == "object" and (keys - ["vulns"] | length == 0)
             and (if has("vulns") then .vulns | type == "array"
@@ -33,12 +33,12 @@ if ! response=$(curl --disable --silent --show-error --fail --proto '=https' \
         | map(.vulns[]? | .id)
         | join(", ")
     ' <<<"$response"); then
-    printf 'Advisory lookup failed or did not cover all %s Swift pins\n' "$pin_count" >&2
-    exit 1
+	printf 'Advisory lookup failed or did not cover all %s Swift pins\n' "$pin_count" >&2
+	exit 1
 fi
 
 if [[ -n "$findings" ]]; then
-    printf 'Swift dependency advisories: %s\n' "$findings" >&2
-    exit 1
+	printf 'Swift dependency advisories: %s\n' "$findings" >&2
+	exit 1
 fi
 printf 'Checked %s pinned Swift revisions for known advisories\n' "$pin_count"

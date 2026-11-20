@@ -37,8 +37,13 @@ tips=$(printf '%s\n' $tips | sort -u)
 # shellcheck disable=SC2086  # one SHA per word
 for sha in $tips; do
 	echo "pre-push: Swift checks at pushed tip $(git rev-parse --short "$sha")"
+	# Ignore the detached worktree's mise.toml for shimmed tools (make, lizard,
+	# uv) under MISE_PARANOID=1; scripts/mise-tool.sh still enforces exact pins.
+	# shellcheck disable=SC2016  # expanded inside the at_sha subshell, not here
 	at_sha "$sha" sh -c '
-		make format-check lint audit-swift-dependencies swift-sast duplication &&
+		wt=$(pwd -P)
+		export MISE_IGNORED_CONFIG_PATHS="${MISE_IGNORED_CONFIG_PATHS:+$MISE_IGNORED_CONFIG_PATHS:}$wt"
+		make format-check lint lint-scripts audit-swift-dependencies swift-sast duplication &&
 		swift build && make test benchmark
 	' || exit 1
 done

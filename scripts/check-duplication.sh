@@ -22,33 +22,33 @@ readonly BLOCK_MARKER='^Duplicate block:$'
 readonly RATE_MARKER='^Total duplicate rate'
 
 if [[ $# -eq 0 ]]; then
-    printf 'usage: %s <path>...\n' "$0" >&2
-    exit 2
+	printf 'usage: %s <path>...\n' "$0" >&2
+	exit 2
 fi
 
 for tool in "$SCANNER" timeout; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        printf '❌ duplication: %s is not installed (lizard: %s)\n' "$tool" "$INSTALL_HINT" >&2
-        exit 1
-    fi
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		printf '❌ duplication: %s is not installed (lizard: %s)\n' "$tool" "$INSTALL_HINT" >&2
+		exit 1
+	fi
 done
 
 if ! report=$(timeout "$SCAN_SECONDS" "$SCANNER" -Eduplicate --CCN "$UNLIMITED" --length "$UNLIMITED" "$@" 2>&1); then
-    printf '❌ duplication: %s failed or timed out after %ss on: %s\n' "$SCANNER" "$SCAN_SECONDS" "$*" >&2
-    printf '%s\n' "$report" >&2
-    exit 1
+	printf '❌ duplication: %s failed or timed out after %ss on: %s\n' "$SCANNER" "$SCAN_SECONDS" "$*" >&2
+	printf '%s\n' "$report" >&2
+	exit 1
 fi
 
 if ! grep -q "$SECTION_MARKER" <<<"$report"; then
-    printf '❌ duplication: %s printed no duplicate report for: %s\n' "$SCANNER" "$*" >&2
-    exit 1
+	printf '❌ duplication: %s printed no duplicate report for: %s\n' "$SCANNER" "$*" >&2
+	exit 1
 fi
 
 duplicates=$(sed -n "/$SECTION_MARKER/,\$p" <<<"$report")
 if grep -q "$BLOCK_MARKER" <<<"$duplicates"; then
-    printf '❌ duplication: duplicated Swift blocks; extract the shared code\n' >&2
-    printf '%s\n' "$duplicates" >&2
-    exit 1
+	printf '❌ duplication: duplicated Swift blocks; extract the shared code\n' >&2
+	printf '%s\n' "$duplicates" >&2
+	exit 1
 fi
 
 grep "$RATE_MARKER" <<<"$duplicates" || true

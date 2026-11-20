@@ -1,4 +1,4 @@
-.PHONY: build test python-policy format format-check swiftformat-version swiftlint-version lint hooks bundle run stop status install uninstall clean icons \
+.PHONY: build test python-policy format format-check swiftformat-version swiftlint-version lint lint-scripts hooks bundle run stop status install uninstall clean icons \
         audit-swift-dependencies swift-sast duplication benchmark benchmark-baseline profile-app profile-trace \
         local-signing sign verify-sign check-adhoc notarize check-notarize staple \
         notary-check zip dmg dist tag tag-push release ship \
@@ -64,22 +64,12 @@ ENTITLEMENTS := Resources/SweetMX.entitlements
 # on Retina screens instead of upscaling the 18 px file.
 MENU_BAR_ICONS := Resources/MenuBarIconTemplate.png Resources/MenuBarIconTemplate@2x.png
 
-# Exact SwiftFormat release the tree is formatted with. Each release can add or
-# change rules, so another local version rewrites files or fails format-check
-# on clean code. Bump this value, --minversion in .swiftformat, and the
-# reformatted tree in one commit.
-SWIFTFORMAT_VERSION := 0.64.1
-SWIFTFORMAT_RELEASE_URL := https://github.com/nicklockwood/SwiftFormat/releases/tag/$(SWIFTFORMAT_VERSION)
-
-# Exact SwiftLint release the tree is linted with. Each release can add or
-# change rules, so another local version fails lint on clean code or misses
-# findings. Bump this value, swiftlint_version in .swiftlint.yml, and any lint
-# fixes in one commit.
-SWIFTLINT_VERSION := 0.65.1
-SWIFTLINT_RELEASE_URL := https://github.com/realm/SwiftLint/releases/tag/$(SWIFTLINT_VERSION)
+# Exact SwiftFormat and SwiftLint pins live in mise.toml [tools] and are
+# resolved + version-checked fail-closed by scripts/mise-tool.sh on demand.
+MISE_TOOL := bash scripts/mise-tool.sh
 # Defined before the path lists below, which expand it at once (:=).
 PROFILE_SCRIPT := scripts/profile-app.swift
-SWIFT_STYLE_PATHS := Sources Tests $(PROFILE_SCRIPT) $(LOCAL_INSTALLER) $(ICON_GENERATOR)
+SWIFT_STYLE_PATHS := Package.swift Sources Tests $(PROFILE_SCRIPT) $(LOCAL_INSTALLER) $(ICON_GENERATOR)
 # The performance gate builds with optimizations, as the shipped app is, plus -enable-testing so
 # the benchmarks can reach internal types. Its own scratch path keeps those flags from forcing a
 # full rebuild of the plain release build (.build/release) that `make bundle` uses, and back.
@@ -164,6 +154,7 @@ help:
 	@echo "  make format       - Auto-format Sources/ and Tests/ (SwiftFormat)"
 	@echo "  make format-check - Fail if formatting is needed (SwiftFormat --lint)"
 	@echo "  make lint         - Run SwiftLint"
+	@echo "  make lint-scripts - Format-check and lint repo shell and Python scripts"
 	@echo "  make hooks        - Enable tracked git hooks (run once per clone)"
 	@echo "  make icons        - Regenerate the committed icon files"
 	@echo "  make bundle       - Create .app bundle"
@@ -274,51 +265,42 @@ profile-trace:
 # Code Style
 # ==============================================================================
 
-# Runs before format and format-check and fails closed, so the pre-commit hook
-# never accepts or rewrites code with a SwiftFormat release other than the pin.
+# Fails closed when SwiftFormat does not match the exact pin in mise.toml.
 swiftformat-version:
-	@installed=$$(swiftformat --version 2>/dev/null || echo "not installed"); \
-	if [ "$$installed" != "$(SWIFTFORMAT_VERSION)" ]; then \
-		echo "$(RED)SwiftFormat $(SWIFTFORMAT_VERSION) required, found: $$installed$(NC)" >&2; \
-		echo "Install it from $(SWIFTFORMAT_RELEASE_URL)" >&2; \
-		exit 1; \
-	fi
+	@$(MISE_TOOL) check swiftformat
 
-format: swiftformat-version
+format:
 	@echo "$(BLUE)Formatting Swift sources (SwiftFormat)...$(NC)"
-	swiftformat $(SWIFT_STYLE_PATHS)
+	@$(MISE_TOOL) run swiftformat -- $(SWIFT_STYLE_PATHS)
 	@echo "$(GREEN)Formatting complete$(NC)"
 
-format-check: swiftformat-version
+format-check:
 	@echo "$(BLUE)Checking formatting (SwiftFormat --lint)...$(NC)"
 	@if [ "$$GITHUB_ACTIONS" = "true" ]; then \
-		swiftformat $(SWIFT_STYLE_PATHS) --lint --reporter github-actions-log; \
+		$(MISE_TOOL) run swiftformat -- $(SWIFT_STYLE_PATHS) --lint --reporter github-actions-log; \
 	else \
-		swiftformat $(SWIFT_STYLE_PATHS) --lint; \
+		$(MISE_TOOL) run swiftformat -- $(SWIFT_STYLE_PATHS) --lint; \
 	fi
 	@echo "$(GREEN)Formatting OK$(NC)"
 
 hooks:
 	@./scripts/setup-hooks
 
-# Runs before lint and fails closed with an install link, so the pre-commit
-# hook never accepts code checked by a SwiftLint release other than the pin.
-# The swiftlint_version key in .swiftlint.yml would also fail, but without a
-# clear fix, and a missing binary would only show "command not found".
+# Fails closed when SwiftLint does not match the exact pin in mise.toml.
 swiftlint-version:
-	@installed=$$(swiftlint version 2>/dev/null || echo "not installed"); \
-	if [ "$$installed" != "$(SWIFTLINT_VERSION)" ]; then \
-		echo "$(RED)SwiftLint $(SWIFTLINT_VERSION) required, found: $$installed$(NC)" >&2; \
-		echo "Install it from $(SWIFTLINT_RELEASE_URL)" >&2; \
-		exit 1; \
-	fi
+	@$(MISE_TOOL) check swiftlint
 
-lint: swiftlint-version
+lint:
 	@echo "$(BLUE)Linting Swift sources (SwiftLint)...$(NC)"
 	@REPORTER=xcode; \
 	if [ "$$GITHUB_ACTIONS" = "true" ]; then REPORTER=github-actions-logging; fi; \
-	swiftlint lint --config .swiftlint.yml --force-exclude --reporter $$REPORTER
+	$(MISE_TOOL) run swiftlint -- lint --strict --config .swiftlint.yml --force-exclude --reporter $$REPORTER
 	@echo "$(GREEN)Lint OK$(NC)"
+
+lint-scripts:
+	@echo "$(BLUE)Checking repo shell and Python scripts (shellcheck, shfmt, ruff)...$(NC)"
+	@bash scripts/lint-scripts.sh
+	@echo "$(GREEN)Scripts OK$(NC)"
 
 # One compile rule for `icons` and `bundle`, so both always run the same
 # generator build. Absolute source paths matter: see ICON_SOURCES.

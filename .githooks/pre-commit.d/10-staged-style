@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Swift, shell, and Python must be checked as committed, including partial commits.
+set -euo pipefail
+# shellcheck disable=SC1090,SC1091  # path exported by the hook runner
+. "${HOOK_HELPERS:?run from .githooks (scripts/setup-hooks)}"
+
+readonly MISE_CONFIG='mise.toml'
+readonly LINT_SCRIPT='scripts/lint-scripts.sh'
+readonly MISE_HELPER='scripts/mise-tool.sh'
+
+if [ "$(uname -s)" != Darwin ]; then
+	echo "pre-commit: Swift style checks require macOS" >&2
+	exit 1
+fi
+
+scratch=$(mktemp -d "${TMPDIR:-/tmp}/sweetmx-staged.XXXXXX")
+cleanup() {
+	case "$scratch" in
+	*/sweetmx-staged.*) rm -rf -- "$scratch" ;;
+	esac
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+scratch=$(cd -- "$scratch" && pwd -P)
+tree="$scratch/tree"
+mkdir -- "$tree"
+staged_git checkout-index -a --prefix="$tree/"
+
+# Control files must resolve within the snapshot, even when they are deleted
+# or replaced by a symlink in a partial commit.
+if [ -L "$tree/scripts" ]; then
+	echo "pre-commit: staged scripts directory must belong to the repository" >&2
+	exit 1
+fi
+for file in Makefile .swiftformat .swiftlint.yml "$MISE_CONFIG" "$LINT_SCRIPT" "$MISE_HELPER"; do
+	if [ -L "$tree/$file" ] || [ ! -f "$tree/$file" ] || [ ! -s "$tree/$file" ]; then
+		echo "pre-commit: staged $file must be a nonempty regular file" >&2
+		exit 1
+	fi
+done
+for file in "$LINT_SCRIPT" "$MISE_HELPER"; do
+	if [ ! -x "$tree/$file" ]; then
+		echo "pre-commit: staged $file must be executable" >&2
+		exit 1
+	fi
+done
+
+# The snapshot is intentionally untrusted by mise. The staged helper verifies pins.
+export MISE_IGNORED_CONFIG_PATHS="${MISE_IGNORED_CONFIG_PATHS:+$MISE_IGNORED_CONFIG_PATHS:}$tree"
+make -C "$tree" format-check lint
+
+# A changed pin or lint rule can invalidate every script, even an unchanged one.
+all_scripts=0
+if staged_git diff --cached --quiet -- "$MISE_CONFIG" "$LINT_SCRIPT" "$MISE_HELPER"; then
+	staged_git diff --cached --no-renames --diff-filter=ACMT --name-only -z >"$scratch/candidates"
+else
+	rc=$?
+	[ "$rc" -eq 1 ] || exit "$rc"
+	all_scripts=1
+	staged_git ls-files -z >"$scratch/candidates"
+fi
+"$tree/$LINT_SCRIPT" --filter <"$scratch/candidates" >"$scratch/filtered"
+files=()
+while IFS= read -r -d '' path; do
+	if [ -f "$tree/$path" ] && [ ! -L "$tree/$path" ]; then
+		files+=("./$path")
+	fi
+done <"$scratch/filtered"
+
+if [ "${#files[@]}" -gt 0 ]; then
+	echo "pre-commit: shell/python checks (${#files[@]} staged file(s))" >&2
+	cd "$tree"
+	"./$LINT_SCRIPT" -- "${files[@]}"
+elif [ "$all_scripts" -eq 1 ]; then
+	echo "pre-commit: changed lint configuration matched no staged scripts" >&2
+	exit 1
+fi

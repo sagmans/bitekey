@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "SweetMX",
     platforms: [
-        .macOS(.v26)
+        .macOS(.v26),
     ],
     products: [
         .executable(name: "SweetMX", targets: ["SweetMX"]),

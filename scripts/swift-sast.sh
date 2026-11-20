@@ -21,15 +21,15 @@ readonly PARTIAL_PARSE=PartialParsing
 readonly MAX_RESULT_EXIT=1
 
 if [[ $# -eq 0 ]]; then
-    printf 'usage: %s <path>...\n' "$0" >&2
-    exit 2
+	printf 'usage: %s <path>...\n' "$0" >&2
+	exit 2
 fi
 
 for tool in semgrep jq timeout; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        printf '❌ swift-sast: %s is not installed\n' "$tool" >&2
-        exit 1
-    fi
+	if ! command -v "$tool" >/dev/null 2>&1; then
+		printf '❌ swift-sast: %s is not installed\n' "$tool" >&2
+		exit 1
+	fi
 done
 
 stderr_log=$(mktemp "${TMPDIR:-/tmp}/swift-sast.XXXXXX")
@@ -39,11 +39,11 @@ trap 'rm -f -- "$stderr_log"' EXIT
 # waiver; an exception must be a reviewed `paths.exclude` in the rule.
 status=0
 report=$(timeout "$SCAN_SECONDS" semgrep scan --config "$CONFIG" --metrics=off \
-    --disable-version-check --disable-nosem --json "$@" 2>"$stderr_log") || status=$?
+	--disable-version-check --disable-nosem --json "$@" 2>"$stderr_log") || status=$?
 if [[ "$status" -gt "$MAX_RESULT_EXIT" ]] || ! jq -e '(.results | type == "array") and (.errors | type == "array")' <<<"$report" >/dev/null 2>&1; then
-    printf '❌ swift-sast: semgrep failed (exit %s) or returned no report for: %s\n' "$status" "$*" >&2
-    tail -n 20 "$stderr_log" >&2
-    exit 1
+	printf '❌ swift-sast: semgrep failed (exit %s) or returned no report for: %s\n' "$status" "$*" >&2
+	tail -n 20 "$stderr_log" >&2
+	exit 1
 fi
 
 findings=$(jq -r '.results[] | "\(.path):\(.start.line): \(.check_id | split(".") | last): \(.extra.message)"' <<<"$report")
@@ -60,15 +60,15 @@ skipped=$(jq -r --arg kind "$PARTIAL_PARSE" '
     | .type[1][] | "\(.path):\(.start.line)-\(.end.line)"' <<<"$report")
 
 if [[ -n "$skipped" ]]; then
-    printf 'swift-sast: parser skipped these spans (newer Swift syntax):\n%s\n' "$skipped" >&2
+	printf 'swift-sast: parser skipped these spans (newer Swift syntax):\n%s\n' "$skipped" >&2
 fi
 if [[ -n "$blocking" ]]; then
-    printf '❌ swift-sast: scanner errors:\n%s\n' "$blocking" >&2
-    exit 1
+	printf '❌ swift-sast: scanner errors:\n%s\n' "$blocking" >&2
+	exit 1
 fi
 if [[ -n "$findings" ]]; then
-    printf '❌ swift-sast: findings:\n%s\n' "$findings" >&2
-    exit 1
+	printf '❌ swift-sast: findings:\n%s\n' "$findings" >&2
+	exit 1
 fi
 
 printf 'swift-sast: %s files scanned, 0 findings\n' "$(jq '.paths.scanned | length' <<<"$report")"
